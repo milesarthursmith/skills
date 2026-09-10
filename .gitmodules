@@ -1,0 +1,24 @@
+[submodule "marketingskills"]
+	path = marketingskills
+	url = https://github.com/coreyhaines31/marketingskills
+[submodule "gtm-cofounder"]
+	path = gtm-cofounder
+	url = https://github.com/AIDevGTM/gtm-cofounder
+[submodule "gtm-skills"]
+	path = gtm-skills
+	url = https://github.com/Prospeda/gtm-skills
+[submodule "claude-marketing"]
+	path = claude-marketing
+	url = https://github.com/thatrebeccarae/claude-marketing
+[submodule "claude-gtm-plugin"]
+	path = claude-gtm-plugin
+	url = https://github.com/manojbajaj95/claude-gtm-plugin
+[submodule "devmarketing-skills"]
+	path = devmarketing-skills
+	url = https://github.com/jonathimer/devmarketing-skills
+[submodule "gtm-eng-skills"]
+	path = gtm-eng-skills
+	url = https://github.com/getaero-io/gtm-eng-skills
+[submodule "genesys-skills"]
+	path = genesys-skills
+	url = https://github.com/matteotitta/genesys-skills
