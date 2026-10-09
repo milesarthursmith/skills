@@ -1,0 +1,292 @@
+<title>Name Swipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: one phone-width column — a card stack you swipe, a verdict bar under it, a list view of every vote. */
+:root{
+  --bg:#EEF2EC;        /* pale gum-leaf */
+  --card:#FFFFFF;
+  --ink:#15201A;
+  --muted:#5D6B63;
+  --line:#D5DDD6;
+  --accent:#FF6B3D;    /* Hills-hoist orange */
+  --yes:#1F8A5B;
+  --no:#C4412F;
+  --love:#D9A400;
+  --chip:#E4EAE3;
+  --display:"Bricolage Grotesque", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101713;--card:#1A241E;--ink:#EAF1EC;--muted:#9AAAA0;--line:#2C3A32;
+  --accent:#FF8157;--yes:#3FBF86;--no:#F0705C;--love:#F2C230;--chip:#24312A;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101713;--card:#1A241E;--ink:#EAF1EC;--muted:#9AAAA0;--line:#2C3A32;
+  --accent:#FF8157;--yes:#3FBF86;--no:#F0705C;--love:#F2C230;--chip:#24312A;color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;padding:0 16px}
+.wrap{max-width:460px;margin:0 auto;padding-block:18px 28px;display:flex;flex-direction:column;gap:14px;min-height:100%;box-sizing:border-box}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.01em;margin:0}
+h1 span{color:var(--accent)}
+.tabs{display:flex;gap:4px;background:var(--chip);padding:3px;border-radius:999px}
+.tabs button{border:0;background:transparent;color:var(--muted);font:600 13px var(--body);padding:6px 12px;border-radius:999px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink)}
+.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.bar{height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+
+.stack{position:relative;height:380px}
+.card{position:absolute;inset:0;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:14px;touch-action:pan-y;user-select:none;cursor:grab;box-shadow:0 10px 30px -18px rgba(0,0,0,.35);transition:transform .25s ease, opacity .25s}
+.card.behind{transform:scale(.95) translateY(12px);opacity:.6;pointer-events:none}
+.card.dragging{transition:none;cursor:grabbing}
+.style{align-self:flex-start;font:600 11px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);padding:4px 9px;border-radius:999px}
+.name{font-family:var(--display);font-weight:800;font-size:clamp(46px,14vw,64px);line-height:.95;letter-spacing:-.02em;margin:4px 0 0;word-break:break-word}
+.say{color:var(--muted);font-size:13px}
+.made,.why{margin:0}
+.made b,.why b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:2px}
+.domains{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+.dom{font:500 12px var(--body);padding:4px 9px;border-radius:8px;background:var(--chip);color:var(--muted)}
+.dom.ok{color:var(--yes)}
+.dom.no{color:var(--no);text-decoration:line-through}
+.stamp{position:absolute;top:22px;right:22px;font:800 20px var(--display);padding:4px 10px;border:3px solid;border-radius:10px;opacity:0;transform:rotate(8deg)}
+.stamp.yes{color:var(--yes)}.stamp.no{color:var(--no);right:auto;left:22px;transform:rotate(-8deg)}
+
+.verdicts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.verdicts button{border:2px solid var(--line);background:var(--card);color:var(--ink);font:600 15px var(--body);padding:12px 6px;border-radius:14px;cursor:pointer}
+.verdicts button:focus-visible,.tabs button:focus-visible,.tags button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.verdicts .no:hover,.verdicts .no[aria-pressed="true"]{border-color:var(--no);color:var(--no)}
+.verdicts .yes:hover,.verdicts .yes[aria-pressed="true"]{border-color:var(--yes);color:var(--yes)}
+.verdicts .love:hover,.verdicts .love[aria-pressed="true"]{border-color:var(--love);color:var(--love)}
+.why-box{display:flex;flex-direction:column;gap:8px}
+.why-box label{font-size:13px;color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tags button{border:1px solid var(--line);background:transparent;color:var(--ink);font:500 12px var(--body);padding:5px 10px;border-radius:999px;cursor:pointer}
+.tags button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+textarea{width:100%;box-sizing:border-box;min-height:58px;resize:vertical;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px;font:15px var(--body)}
+.hint{color:var(--muted);font-size:12px;text-align:center}
+.nav{display:flex;justify-content:space-between}
+.nav button{border:0;background:none;color:var(--muted);font:500 13px var(--body);cursor:pointer;padding:4px}
+
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:22px;padding:28px;text-align:center;display:flex;flex-direction:column;gap:6px}
+.empty h2{font-family:var(--display);font-size:24px;margin:0}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:2px 10px;cursor:pointer}
+.row .n{font:800 20px var(--display)}
+.row .v{align-self:center;font:600 13px var(--body)}
+.row .v.yes{color:var(--yes)}.row .v.no{color:var(--no)}.row .v.love{color:var(--love)}.row .v.none{color:var(--muted)}
+.row .note{grid-column:1/-1;color:var(--muted);font-size:13px;min-width:0}
+.row .others{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.filter{display:flex;gap:6px;flex-wrap:wrap}
+.save-status{margin:-6px 0 0;min-height:16px;font-size:12px;color:var(--muted)}
+.save-status.bad{color:var(--no)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion: reduce){.card,.bar i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Name <span>swipe</span></h1>
+    <div class="tabs" role="tablist">
+      <button id="tab-swipe" role="tab" aria-selected="true">Swipe</button>
+      <button id="tab-list" role="tab" aria-selected="false">All votes</button>
+    </div>
+  </header>
+
+  <section id="swipe-view" style="display:flex;flex-direction:column;gap:14px">
+    <div class="meta"><span id="round-label">Round 1</span><span id="count">0 of 0</span></div>
+    <p class="save-status" id="save-status" aria-live="polite"></p>
+    <div class="bar"><i id="progress"></i></div>
+    <div class="stack" id="stack">
+      <div class="empty" id="empty">
+        <h2>Names on the way</h2>
+        <p class="say">Claude is checking domains for the first batch. They land here as soon as that's done. Nothing to do yet.</p>
+      </div>
+    </div>
+    <div class="verdicts" id="verdicts" hidden>
+      <button class="no" id="v-no" aria-pressed="false">Nah</button>
+      <button class="yes" id="v-yes" aria-pressed="false">Keen</button>
+      <button class="love" id="v-love" aria-pressed="false">Love it</button>
+    </div>
+    <div class="why-box" id="why-box" hidden>
+      <label for="note">Why? (optional, but this is what steers the next round)</label>
+      <div class="tags" id="tags"></div>
+      <textarea id="note" placeholder="e.g. fun to say, but sounds like a kids' app"></textarea>
+    </div>
+    <div class="nav" id="nav" hidden><button id="back">← Back</button><button id="restart">↺ Start from card 1</button><button id="skip">Skip →</button></div>
+    <p class="hint" id="hint" hidden>Swipe right for Keen, left for Nah. Tap Love it for the standouts.</p>
+  </section>
+
+  <section id="list-view" hidden style="display:flex;flex-direction:column;gap:12px">
+    <div class="filter tags" id="filter"></div>
+    <div class="list" id="list"></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TAGS = ["Fun to say","Easy to spell","Hard to spell","Too cute","Too blokey","Too girly","Sounds like another brand","Sounds cheap","Feels Aussie","Trustworthy"];
+const LABEL = {no:"Nah",yes:"Keen",love:"Love it"};
+let db=null, user=null, me=null;
+let names=[], myVotes={}, allVotes={}, idx=0, filter="all", mergedServer=false;
+const $=id=>document.getElementById(id);
+
+function toast(t){const el=$("toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),1600)}
+
+let fromTop=false; // "Start from card 1": every card in order, votes kept
+function queue(){ // unvoted first, then voted, in seed order
+  if(fromTop) return names;
+  const un=names.filter(n=>!myVotes[n.id]), done=names.filter(n=>myVotes[n.id]);
+  return un.concat(done);
+}
+function current(){return queue()[idx]}
+
+function render(){
+  const q=queue(), voted=names.filter(n=>myVotes[n.id]).length;
+  $("count").textContent=`${voted} of ${names.length} voted`;
+  $("progress").style.width=names.length?(voted/names.length*100)+"%":"0";
+  const rounds=[...new Set(names.map(n=>n.round||1))];
+  $("round-label").textContent=rounds.length?("Round "+rounds.join(", ")):"Round 1";
+  const has=names.length>0;
+  ["verdicts","why-box","nav","hint"].forEach(i=>$(i).hidden=!has);
+  const stack=$("stack");
+  stack.querySelectorAll(".card").forEach(c=>c.remove());
+  $("empty").hidden=has;
+  if(!has) return;
+  if(idx>=q.length) idx=0;
+  const next=q[idx+1]; if(next) stack.appendChild(cardEl(next,true));
+  const cur=q[idx]; const c=cardEl(cur,false); stack.appendChild(c); attachSwipe(c);
+  const v=myVotes[cur.id]||{};
+  ["no","yes","love"].forEach(k=>$("v-"+k).setAttribute("aria-pressed",v.verdict===k));
+  $("note").value=v.note||"";
+  $("tags").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",(v.tags||[]).includes(b.dataset.t)));
+  renderList();
+}
+
+function cardEl(n,behind){
+  const c=document.createElement("article");
+  c.className="card"+(behind?" behind":"");
+  const dom=(label,val)=>{if(val==null)return"";const cls=val==="available"?"ok":val==="taken"?"no":"";return `<span class="dom ${cls}">${label} ${val==="available"?"free":val==="taken"?"taken":"unchecked"}</span>`};
+  c.innerHTML=`<span class="stamp yes">KEEN</span><span class="stamp no">NAH</span>
+    <span class="style"></span><h2 class="name"></h2><p class="say"></p>
+    <p class="made"><b>How it's made</b><span></span></p>
+    <p class="why"><b>Why it fits</b><span></span></p>
+    <div class="domains">${dom(n.slug+".com.au",n.comau)}${dom(n.slug+".com",n.com)}</div>`;
+  c.querySelector(".style").textContent=n.style||"";
+  c.querySelector(".name").textContent=n.name;
+  c.querySelector(".say").textContent=n.say?("Say it: "+n.say):"";
+  c.querySelector(".made span").textContent=n.made||"";
+  c.querySelector(".why span").textContent=n.why||"";
+  return c;
+}
+
+function attachSwipe(c){
+  let x0=null,dx=0;
+  c.addEventListener("pointerdown",e=>{if(e.target.closest("button"))return;x0=e.clientX;dx=0;c.classList.add("dragging");c.setPointerCapture(e.pointerId)});
+  c.addEventListener("pointermove",e=>{if(x0==null)return;dx=e.clientX-x0;c.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`;
+    c.querySelector(".stamp.yes").style.opacity=Math.max(0,dx/100);c.querySelector(".stamp.no").style.opacity=Math.max(0,-dx/100)});
+  const end=()=>{if(x0==null)return;x0=null;c.classList.remove("dragging");
+    if(dx>90){fly(c,1);vote("yes")}else if(dx<-90){fly(c,-1);vote("no")}else{c.style.transform="";c.querySelectorAll(".stamp").forEach(s=>s.style.opacity=0)}};
+  c.addEventListener("pointerup",end);c.addEventListener("pointercancel",end);
+}
+function fly(c,dir){c.style.transform=`translateX(${dir*500}px) rotate(${dir*25}deg)`;c.style.opacity=0}
+
+function status(t,bad){const el=$("save-status");el.textContent=t;el.classList.toggle("bad",!!bad)}
+function keepLocal(){try{localStorage.setItem("votes",JSON.stringify(myVotes))}catch(e){}}
+let saving=0;
+async function save(){
+  keepLocal();
+  if(!db){status("Not saved: open this page signed in to claude.ai",true);return false}
+  if(!me){status("Not saved: couldn't tell who you are. Reload the page.",true);return false}
+  const mine=++saving; status("Saving…");
+  const slow=setTimeout(()=>{if(mine===saving)status("Still saving… if a permission prompt is showing, allow it",true)},6000);
+  try{await db.doc("votes/"+me).set({v:myVotes,updatedAt:new Date().toISOString()});clearTimeout(slow);if(mine===saving)status("Saved");return true}
+  catch(e){clearTimeout(slow);status("Not saved ("+((e&&(e.code||e.message))||"error")+"). Your votes are kept in this browser.",true);return false}
+}
+function captureWhy(){
+  const n=current(); if(!n) return;
+  const tags=[...$("tags").querySelectorAll('button[aria-pressed="true"]')].map(b=>b.dataset.t);
+  const note=$("note").value.trim();
+  if(myVotes[n.id]) {myVotes[n.id].tags=tags;myVotes[n.id].note=note}
+  return {tags,note};
+}
+async function vote(verdict){
+  const n=current(); if(!n) return;
+  const {tags,note}=captureWhy()||{};
+  const wasUnvoted=!myVotes[n.id];
+  myVotes[n.id]={verdict,tags:tags||[],note:note||"",at:new Date().toISOString()};
+  toast(LABEL[verdict]+": "+n.name);
+  // move on straight away; saving happens in the background
+  const stays=wasUnvoted&&!fromTop; // unvoted-first order moves the voted card away by itself
+  if(!stays) idx++;
+  const top=$("stack").querySelector(".card:not(.behind)");if(top&&!top.style.opacity)fly(top,verdict==="no"?-1:1);
+  setTimeout(render,220);
+  save();
+}
+let noteTimer;
+function noteChanged(){const n=current();if(!n)return;if(!myVotes[n.id]){keepLocal();return}captureWhy();clearTimeout(noteTimer);noteTimer=setTimeout(save,900)}
+
+function renderList(){
+  const f=$("filter");
+  if(!f.childElementCount){[["all","All"],["love","Love it"],["yes","Keen"],["no","Nah"],["none","Not voted"]].forEach(([k,l])=>{const b=document.createElement("button");b.dataset.f=k;b.textContent=l;b.onclick=()=>{filter=k;renderList()};f.appendChild(b)})}
+  f.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.f===filter));
+  const L=$("list"); L.textContent="";
+  const order={love:0,yes:1,none:2,no:3};
+  names.slice().sort((a,b)=>order[(myVotes[a.id]||{}).verdict||"none"]-order[(myVotes[b.id]||{}).verdict||"none"])
+   .filter(n=>filter==="all"||((myVotes[n.id]||{}).verdict||"none")===filter)
+   .forEach(n=>{
+    const v=myVotes[n.id]; const r=document.createElement("div"); r.className="row";
+    const nm=document.createElement("span");nm.className="n";nm.textContent=n.name;
+    const vv=document.createElement("span");vv.className="v "+(v?v.verdict:"none");vv.textContent=v?LABEL[v.verdict]:"Not voted";
+    r.append(nm,vv);
+    const why=v&&[...(v.tags||[]),v.note].filter(Boolean).join(" · ");
+    if(why){const p=document.createElement("span");p.className="note";p.textContent=why;r.append(p)}
+    const others=Object.entries(allVotes).filter(([uid])=>uid!==me).map(([uid,d])=>[uid,(d.v||{})[n.id]]).filter(([,x])=>x);
+    if(others.length){const o=document.createElement("span");o.className="others";o.dataset.ids=others.map(x=>x[0]).join(",");o.dataset.v=others.map(x=>LABEL[x[1].verdict]+(x[1].note?` (“${x[1].note}”)`:"")).join("|");r.append(o)}
+    r.onclick=()=>{idx=queue().findIndex(x=>x.id===n.id);showTab("swipe");render()};
+    L.append(r);
+  });
+  fillOthers();
+}
+async function fillOthers(){
+  if(!user) return;
+  const els=[...document.querySelectorAll(".others")]; if(!els.length) return;
+  const ids=[...new Set(els.flatMap(e=>e.dataset.ids.split(",")))];
+  let ps={}; try{ps=await user.profiles(ids)}catch(e){}
+  els.forEach(e=>{const ids=e.dataset.ids.split(","),vs=e.dataset.v.split("|");e.textContent=ids.map((id,i)=>`${(ps[id]&&ps[id].name)||"Someone"}: ${vs[i]}`).join(" · ")});
+}
+
+function showTab(t){$("tab-swipe").setAttribute("aria-selected",t==="swipe");$("tab-list").setAttribute("aria-selected",t==="list");$("swipe-view").hidden=t!=="swipe";$("list-view").hidden=t!=="list";$("swipe-view").style.display=t==="swipe"?"flex":"none";$("list-view").style.display=t==="list"?"flex":"none"}
+
+// wiring
+TAGS.forEach(t=>{const b=document.createElement("button");b.dataset.t=t;b.textContent=t;b.setAttribute("aria-pressed","false");b.onclick=()=>{b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true");noteChanged()};$("tags").appendChild(b)});
+$("note").addEventListener("input",noteChanged);
+["no","yes","love"].forEach(k=>$("v-"+k).onclick=()=>vote(k));
+$("back").onclick=()=>{idx=Math.max(0,idx-1);render()};
+$("restart").onclick=()=>{fromTop=true;idx=0;showTab("swipe");render();toast("Back to card 1. Your votes are kept.")};
+$("skip").onclick=()=>{idx=(idx+1)%Math.max(1,names.length);render()};
+$("tab-swipe").onclick=()=>showTab("swipe");$("tab-list").onclick=()=>showTab("list");
+document.addEventListener("keydown",e=>{if(e.target.tagName==="TEXTAREA")return;if(e.key==="ArrowRight")vote("yes");if(e.key==="ArrowLeft")vote("no");if(e.key==="ArrowUp")vote("love")});
+try{const saved=JSON.parse(localStorage.getItem("votes")||"{}");if(saved&&typeof saved==="object")myVotes=saved}catch(e){}
+showTab("swipe"); render();
+
+(async()=>{
+  if(!window.claude) return;
+  [db,user]=await Promise.all([claude.use("db"),claude.use("user")]);
+  if(user){try{me=await user.id()}catch(e){}}
+  if(!db){$("empty").querySelector("p").textContent="Open this page signed in to claude.ai to see the names and vote.";return}
+  if(!me) status("Votes won't save: couldn't tell who you are. Reload the page.",true);
+  db.collection("names").onSnapshot(s=>{
+    const cur=current()&&current().id;
+    names=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.round||1)-(b.round||1)||(a.order||0)-(b.order||0));
+    if(cur){const i=queue().findIndex(n=>n.id===cur);if(i>=0)idx=i}
+    render();
+  });
+  db.collection("votes").onSnapshot(s=>{
+    allVotes={};s.docs.forEach(d=>allVotes[d.id]=d.data()||{});
+    if(me&&!mergedServer){mergedServer=true;const local=myVotes;myVotes={...((allVotes[me]||{}).v||{}),...local};if(Object.keys(local).length)save()}
+    render();
+  });
+})();
+</script>

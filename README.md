@@ -6,6 +6,7 @@
 |---|---|
 | [`site-teardown`](skills/site-teardown/SKILL.md) | Turn a live website into a measured teardown: geometry per breakpoint, motion values, components, creative direction, conversion. Extract reusable styles, tricks and components into the design-kit, then grade the teardown with a blind rebuild. Scripts: capture, fetch-source, compare, record + side-by-side video |
 | [`design-kit`](skills/design-kit/SKILL.md) | Shortlist and apply styles, tricks and components from the private `milesarthursmith/design-kit` repo to a project |
+| [`name-hunt`](skills/name-hunt/SKILL.md) | Find a name for a company or product with the founders in the loop: competitor naming scan, parallel generator subagents per style, .com/.com.au registry checks, a swipe-deck artifact founders vote in, live-call pass, deep-dive on the favourite, trademark pre-check, write-up. Builds on [hunainx/startup-naming](https://github.com/hunainx/startup-naming) (MIT) |
 
 Install into a project: `npx skills add milesarthursmith/skills` (or copy `skills/<name>/` into the project's `.claude/skills/`).
 
