@@ -74,7 +74,7 @@ Use `teardowns/_template.md`. **Required sections.** The blind-rebuild test fail
 - Add each new item to the kit, then run `python3 scripts/build-index.py` in the design-kit repo to regenerate its README index and `index.html` gallery.
 
 ## 7. Quality gate: blind rebuild (do not skip)
-To see motion side by side: `node scripts/record.mjs <url> <out.webm> '<steps json>'` on the original and the rebuild (same steps, so the clips stay in sync), then `bash scripts/sbs.sh left.webm right.webm out.mp4 "original" "rebuild"`.
+Health check after any change: `node scripts/check.mjs <url> [selector]` (console errors, horizontal overflow, reduced-motion loops, screenshots at 1440 and 390). To see motion side by side: `node scripts/record.mjs <url> <out.webm> '<steps json>'` on the original and the rebuild (same steps, so the clips stay in sync), then `bash scripts/sbs.sh left.webm right.webm out.mp4 "original" "rebuild"`.
 
 1. Spawn an agent that may read **only** the teardown and the kit items, and never the live site or source. It rebuilds the page with placeholder assets and logs every gap in `GAPS.md`.
 2. Run `node scripts/compare.mjs <original-url> <out>/original` and the same on the rebuild. Compare page and section heights, the headline, fonts, colours, hovers, scroll-linked curves and reduced motion. Make side-by-side sheets.
