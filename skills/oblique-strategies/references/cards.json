@@ -1,0 +1,322 @@
+[
+ {
+  "id": 1,
+  "kind": "Divergence",
+  "card": "Ask for five, with the odds.",
+  "source": "Verbalized Sampling (2025)",
+  "why": "Ask for one answer and you get the most typical one. Ask for a spread with probabilities and the model reaches into options it would normally suppress.",
+  "prompt": "Before answering, list 5 genuinely different approaches and the rough probability you'd normally pick each. Then build the lowest-probability one that still meets the brief."
+ },
+ {
+  "id": 2,
+  "kind": "Divergence",
+  "card": "Roll the dice before you choose.",
+  "source": "String Seed of Thought (Sakana AI)",
+  "why": "Models are bad at being random. Making them write a random string first, then derive the choice from it, breaks the habit of picking the same option.",
+  "prompt": "Write a random 20-character string. Use it (sum of character codes mod N) to pick which of the N options below you take. Commit to that option and do it well."
+ },
+ {
+  "id": 3,
+  "kind": "Divergence",
+  "card": "Remove the tool you'd reach for first.",
+  "source": "Dropout",
+  "why": "Randomly switching off parts during training stops a network leaning on one path. Taking away the default forces a different route.",
+  "prompt": "Name the library, pattern or assumption you'd normally use here. You can't use it. Solve the task without it."
+ },
+ {
+  "id": 4,
+  "kind": "Divergence",
+  "card": "Branch before you commit.",
+  "source": "Tree of Thoughts",
+  "why": "Explore several partial solutions a few steps deep, then prune, instead of following the first line of thought to the end.",
+  "prompt": "Sketch three different solutions two steps deep. Say which is weakest and why. Drop it and take the other two one step further before choosing."
+ },
+ {
+  "id": 5,
+  "kind": "Effort",
+  "card": "Think longer, not bigger.",
+  "source": "Reasoning models / test-time compute",
+  "why": "Spending more effort at answer time beat building a bigger model. The time goes in before the output, not after.",
+  "prompt": "Before writing anything, spend a full pass on the problem: what's actually being asked, what's ambiguous, and three ways a first attempt would go wrong."
+ },
+ {
+  "id": 6,
+  "kind": "Effort",
+  "card": "Write the steps before the answer.",
+  "source": "Chain of thought",
+  "why": "Models get more right when they lay out intermediate steps instead of jumping to a conclusion.",
+  "prompt": "Write the steps you'll take as a numbered plan. Only then start, and tick each step off as you go."
+ },
+ {
+  "id": 7,
+  "kind": "Effort",
+  "card": "Guess fast, check slow.",
+  "source": "Speculative decoding",
+  "why": "A small model drafts, a big model accepts or fixes. Most of the draft survives, so it's much faster.",
+  "prompt": "Write a rough version end to end in one quick pass. Then go back slowly through each part and accept, fix or replace it."
+ },
+ {
+  "id": 8,
+  "kind": "Verification",
+  "card": "Who checks the work?",
+  "source": "Self-verification / verifiers",
+  "why": "Errors compound over many steps. A check the agent can't fake stops them stacking up.",
+  "prompt": "Write the test or check that proves this works before you build it. You can't say it's done until that check passes."
+ },
+ {
+  "id": 9,
+  "kind": "Verification",
+  "card": "One file, one number, one clock.",
+  "source": "Karpathy autoresearch (2026)",
+  "why": "An agent edits one file, optimises one metric, runs each try for a fixed time, keeps what improves and reverts the rest. It ran ~700 experiments in two days.",
+  "prompt": "Pick one metric for this task. Change one thing, run it, measure. Keep the change only if the number improves; otherwise revert. Repeat 10 times and report the log."
+ },
+ {
+  "id": 10,
+  "kind": "Verification",
+  "card": "Raise autonomy as the checks prove out.",
+  "source": "The Karpathy loop",
+  "why": "Freedom is earned. Start supervised, loosen as the verifier keeps passing.",
+  "prompt": "Ask before each change until your checks have passed three times in a row. After that, carry on without asking and only stop for a failure."
+ },
+ {
+  "id": 11,
+  "kind": "Verification",
+  "card": "Solve it three ways.",
+  "source": "Self-consistency",
+  "why": "Sample several independent answers and take the one they agree on. Disagreement is a signal.",
+  "prompt": "Solve this three separate ways without looking at the earlier attempts. If they agree, ship it. If not, explain the disagreement before choosing."
+ },
+ {
+  "id": 12,
+  "kind": "Critique",
+  "card": "Write the rules, not the answers.",
+  "source": "Constitutional AI",
+  "why": "Instead of labelling every output, write principles and have the model judge itself against them.",
+  "prompt": "Before starting, write 5 principles a good result must obey. When done, score the result against each principle and fix anything that fails."
+ },
+ {
+  "id": 13,
+  "kind": "Critique",
+  "card": "Argue with yourself.",
+  "source": "Debate / LLM-as-judge",
+  "why": "A second voice whose only job is to find faults catches what the author misses.",
+  "prompt": "Draft it. Then switch to a hostile reviewer who wants this rejected and list every weakness. Then switch back and revise."
+ },
+ {
+  "id": 14,
+  "kind": "Critique",
+  "card": "Build it, then attack it.",
+  "source": "AlphaZero self-play",
+  "why": "Playing against yourself creates an opponent that's always exactly your level, so you keep improving.",
+  "prompt": "Build it. Then try to break it as an adversary: bad inputs, edge cases, misuse. Fix what breaks. Do one more round."
+ },
+ {
+  "id": 15,
+  "kind": "Search",
+  "card": "Breed, don't design.",
+  "source": "AlphaEvolve (DeepMind)",
+  "why": "An LLM proposes code changes, an evaluator scores them, the best survive and get mutated again. It found algorithms people hadn't in decades.",
+  "prompt": "Produce 4 variants. Score each against the criteria. Keep the best 2, combine their strongest parts into a new variant, change one thing. Run 3 rounds."
+ },
+ {
+  "id": 16,
+  "kind": "Search",
+  "card": "Keep the best of each kind.",
+  "source": "MAP-Elites (inside AlphaEvolve)",
+  "why": "Keep a winner per niche, not one overall winner, so good-but-different ideas survive to be used later.",
+  "prompt": "Keep a shortlist with a slot each for: simplest, fastest, cheapest, most unusual. A new idea only replaces the one in its own slot."
+ },
+ {
+  "id": 17,
+  "kind": "Search",
+  "card": "Act, look, then think.",
+  "source": "ReAct",
+  "why": "Interleave small actions with reading the results, instead of planning everything up front.",
+  "prompt": "Take the smallest action that will tell you something new. Read the result. Only then decide the next action."
+ },
+ {
+  "id": 18,
+  "kind": "Memory",
+  "card": "Keep notes for your next self.",
+  "source": "Agent memory / persistent state files",
+  "why": "Agents forget between sessions. A file of what was tried and what's next lets work carry on.",
+  "prompt": "Keep a NOTES.md with: what you tried, what failed and why, what's next. Read it before every step and update it after."
+ },
+ {
+  "id": 19,
+  "kind": "Memory",
+  "card": "Write down the lesson after you fail.",
+  "source": "Reflexion",
+  "why": "After a failure, the agent writes a short reflection and reads it before retrying. It learns without retraining.",
+  "prompt": "After each failed attempt, write one sentence on why it failed and one rule to avoid it. Read all the rules before trying again."
+ },
+ {
+  "id": 20,
+  "kind": "Memory",
+  "card": "Do it twice, save it once.",
+  "source": "Voyager skill library / Agent Skills",
+  "why": "Successful procedures get saved with a name and a 'when to use' line, then reused instead of rediscovered.",
+  "prompt": "If you do something more than once, save it as a named procedure with one line on when to use it. Check your saved procedures before starting new work."
+ },
+ {
+  "id": 21,
+  "kind": "Context",
+  "card": "Load only what this step needs.",
+  "source": "Progressive disclosure (Agent Skills)",
+  "why": "Agents see a one-line summary of each skill and open the full instructions only when needed, so the context stays clean.",
+  "prompt": "Start with a one-line summary of each source or file. Open the full content only when the current step needs it."
+ },
+ {
+  "id": 22,
+  "kind": "Context",
+  "card": "Give it a clean desk.",
+  "source": "Sub-agents / context isolation",
+  "why": "A fresh agent with only the brief does a side task, then hands back the conclusion, not its mess.",
+  "prompt": "Hand this sub-question to a fresh agent with only the brief. Take back its conclusion in five lines or fewer, not its working."
+ },
+ {
+  "id": 23,
+  "kind": "Context",
+  "card": "Look it up, don't remember it.",
+  "source": "RAG / tool use",
+  "why": "Models answer better about the world when they fetch the facts instead of recalling them.",
+  "prompt": "Treat every fact about the current world as unknown until you've fetched a source. Note the source next to each claim."
+ },
+ {
+  "id": 24,
+  "kind": "Structure",
+  "card": "Many specialists, one router.",
+  "source": "Mixture of experts",
+  "why": "Only the relevant experts handle each input, so the system is big but each step is cheap and focused.",
+  "prompt": "Split the problem into parts by type. For each part, name the expert who'd handle it best and answer that part as them."
+ },
+ {
+  "id": 25,
+  "kind": "Structure",
+  "card": "Agree on the plug, not the appliance.",
+  "source": "MCP / agent interoperability",
+  "why": "A shared protocol let any tool talk to any agent. Fix the interface and the parts become swappable.",
+  "prompt": "Define the interface between parts first (inputs, outputs, errors). Build each part so it only talks through that interface."
+ },
+ {
+  "id": 26,
+  "kind": "Structure",
+  "card": "Change only a little.",
+  "source": "LoRA",
+  "why": "Adapt a huge model by training a tiny add-on and leaving the rest frozen.",
+  "prompt": "Find the smallest change that gets the result. Leave everything else exactly as it is, and list what you didn't touch."
+ },
+ {
+  "id": 27,
+  "kind": "Structure",
+  "card": "Do it the slow way once, then write the shortcut.",
+  "source": "Distillation",
+  "why": "A big model's outputs train a small one that does most of the job for a fraction of the cost.",
+  "prompt": "Solve this the thorough way once. Then write the simple rule or script that would get 90% of the way next time."
+ },
+ {
+  "id": 28,
+  "kind": "Structure",
+  "card": "Change the reward, not the worker.",
+  "source": "RLHF / RL post-training",
+  "why": "Most recent gains came from changing what models are rewarded for, not their size.",
+  "prompt": "Before working, write down what 'good' means here as a score you could give. Optimise for that score, not for looking finished."
+ },
+ {
+  "id": 29,
+  "kind": "Perturbation",
+  "card": "Think in a language far from English.",
+  "source": "Language of Thought study (2026)",
+  "why": "Making a model reason in another language and answer in English raised output diversity. Languages further from English helped more, and mixing languages helped again, at a small cost in quality.",
+  "prompt": "Do all your thinking in Tagalog (or Hebrew, or Occitan). Write only the final answer in English."
+ },
+ {
+  "id": 30,
+  "kind": "Perturbation",
+  "card": "Ask in five languages, then merge.",
+  "source": "Multilingual prompting (2025)",
+  "why": "Rewriting a prompt in several languages with local cultural framing, answering each, then combining, beat high temperature and persona prompts for diversity.",
+  "prompt": "Rewrite this brief in Japanese, Swahili, Portuguese and Finnish, each with a framing a local would use. Answer each version separately. Then merge the best ideas into one English answer."
+ },
+ {
+  "id": 31,
+  "kind": "Perturbation",
+  "card": "Start from a word that doesn't belong.",
+  "source": "Random concept infusion (2026)",
+  "why": "Putting a random word or sentence in front of a prompt increased unique answers across four models. The effect was real but small, so use it as a nudge.",
+  "prompt": "Unrelated word: [PASTE RANDOM WORD]. Before starting, write two sentences on how this word could change the solution. Then let it shape at least one decision."
+ },
+ {
+  "id": 32,
+  "kind": "Perturbation",
+  "card": "Write the plan in Morse.",
+  "source": "Untested · encoding as a speed bump",
+  "why": "Forcing a plan through an awkward encoding slows the model down and breaks its stock phrasing. Not tested in research; try it and compare.",
+  "prompt": "Write your plan in Morse code (or as a recipe, a chess game, or a regex). Then decode it back into plain English and build what the decoded version says, not what you first meant."
+ },
+ {
+  "id": 33,
+  "kind": "Perturbation",
+  "card": "Explain it without the letter e.",
+  "source": "Untested · Oulipo constraints",
+  "why": "Writers used arbitrary rules to escape their habits. An agent can't fall back on its usual words when they're banned.",
+  "prompt": "Describe your approach without using the letter e. Then describe it again in plain English and note anything that changed."
+ },
+ {
+  "id": 34,
+  "kind": "Perturbation",
+  "card": "Misread the brief on purpose.",
+  "source": "Untested · deliberate misinterpretation",
+  "why": "The 'wrong' reading often exposes an assumption the right reading hid.",
+  "prompt": "List 3 ways this brief could be misread. Sketch the most interesting misreading. Say what it reveals about the real brief, then do the real one."
+ },
+ {
+  "id": 35,
+  "kind": "Perturbation",
+  "card": "It's a plumbing problem.",
+  "source": "Untested · Synectics / analogy transfer",
+  "why": "Describing a problem in another field's terms imports that field's fixes.",
+  "prompt": "Re-describe this problem as if it were a problem in plumbing (or beekeeping, or air traffic control). How would that trade solve it? Translate the answer back."
+ },
+ {
+  "id": 36,
+  "kind": "Perturbation",
+  "card": "It was built in 1987.",
+  "source": "Untested · time-shift",
+  "why": "Older constraints (no cloud, tiny memory, paper forms) push toward simpler designs.",
+  "prompt": "Pretend this had to be built in 1987 with that era's tools. Describe that version. Keep anything from it that would still make ours simpler."
+ },
+ {
+  "id": 37,
+  "kind": "Perturbation",
+  "card": "Design the worst version, then flip it.",
+  "source": "Untested · reverse brainstorming",
+  "why": "Bad ideas are easier to generate, and their opposites are often less obvious than the first good idea.",
+  "prompt": "Design the worst possible version of this in 8 bullet points. Then invert each bullet and build from the inverted list."
+ },
+ {
+  "id": 38,
+  "kind": "Perturbation",
+  "card": "Make it a different object.",
+  "source": "Untested · form forcing",
+  "why": "Forcing the output into a foreign format (a board game's rules, a song's structure, a tax form) changes how it gets organised.",
+  "prompt": "Write the solution as the rules sheet for a board game. Then convert the rules back into a spec."
+ },
+ {
+  "id": 39,
+  "kind": "Perturbation",
+  "card": "The user isn't human.",
+  "source": "Untested · perspective shift",
+  "why": "Designing for an odd user surfaces assumptions about who it's for.",
+  "prompt": "Describe how this would work if the user were a cat, a robot, or someone who only has 10 seconds. Keep one idea from each that improves it for real users."
+ },
+ {
+  "id": 40,
+  "kind": "Perturbation",
+  "card": "Answer as two people who disagree.",
+  "source": "Untested · split persona",
+  "why": "Two named voices with opposite instincts produce a wider spread than one voice asked to be balanced.",
+  "prompt": "Answer twice: once as a cautious engineer, once as a reckless artist. Then write a third answer that steals the best part of each."
+ }
+]
