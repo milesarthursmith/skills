@@ -8,7 +8,7 @@ description: Mine the human feedback in your Claude Code conversations and clust
 Every time you correct Claude Code, you write down a failure mode. This skill collects those corrections from your transcripts, works out what Claude was doing and what went wrong, and clusters them so the repeat failures stand out. Each cluster comes with a rule you can put where it will stop the failure: a review tool, CLAUDE.md, a hook, an agent prompt or an eval.
 
 Three stages:
-1. **Collect.** Scripts read every message you typed, with Claude's reply before and after and the tool calls Claude made in between. Conversations stay together and in order. Where a batch starts or ends mid-conversation, it also gets the turns just before and after. Nothing is cut.
+1. **Collect.** Scripts read every message you typed, with Claude's replies and the tool calls Claude made in between. The unit is the whole conversation: a batch holds complete conversations, in order. A conversation too long for one batch is split into parts, and each later part starts with an overview: the title, the opening message, a one-line outline of every earlier message, and the last few exchanges. If a date or project filter cuts the start of a conversation, the batch still shows how it started. Nothing in the messages is cut.
 2. **Understand.** Sonnet reads each conversation in order, with Claude's tool calls. For every piece of feedback it writes the context, the error, what you wanted, and an exact quote. A script checks each quote against the source.
 3. **Cluster.** Sonnet groups the feedback into failure modes found in the data, per chunk. Opus merges the chunk clusters into one set. A script assigns every row to a cluster and counts them.
 
@@ -52,12 +52,12 @@ The download scripts skip files already saved. One 403 is normal. The last comma
 ```bash
 python3 -I SKILL/scripts/build_messages.py DATA/messages.jsonl [--my-user-id user_XXXX] [--strip-tag NAME ...] \
   [--sources transcript,queued,web,history] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--include REGEX] [--exclude REGEX]
-python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches [--earlier 3] [--later 2]
+python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches [--size 150000] [--earlier 3] [--later 2]
 ```
 
 Show the row counts by source and month. Months with only `history` rows mean the transcripts were deleted: say so.
 
-**4. Understand (Sonnet by default).** Tell the user the batch count and the model first. As a guide, 5,000 messages make about 130 batches of 80 KB. Sonnet reads intent and context better than Haiku; Haiku costs less and suits a quick first pass. Opus suits small, high-stakes runs.
+**4. Understand (Sonnet by default).** Tell the user the batch count and the model first. As a guide, 5,000 messages make about 90 batches of up to 150 KB. Sonnet reads intent and context better than Haiku; Haiku costs less and suits a quick first pass. Opus suits small, high-stakes runs.
 
 Route A, if `claude -p --model sonnet "say ok"` works:
 

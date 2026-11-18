@@ -210,7 +210,20 @@ def keep(r):
 
 
 before = len(rows)
+# Remember each conversation's real opening message, so a date or text filter does not hide how it started.
+opening, first_ts = {}, {}
+for r in rows:
+    if r["session"] not in first_ts or (r["ts"] or "~") < first_ts[r["session"]]:
+        first_ts[r["session"]], opening[r["session"]] = r["ts"] or "~", r
 rows = [r for r in rows if keep(r)]
+kept_first = {}
+for r in rows:
+    if r["session"] not in kept_first or (r["ts"] or "~") < kept_first[r["session"]]["ts"]:
+        kept_first[r["session"]] = r
+for sid, r in kept_first.items():
+    o = opening.get(sid)
+    if o is not None and o is not r:
+        r["session_opening"] = {"ts": o["ts"], "text": o["text"], "claude_after": o["claude_after"]}
 # Keep each conversation together and in order; conversations ordered by their first message.
 start = {}
 for r in rows:

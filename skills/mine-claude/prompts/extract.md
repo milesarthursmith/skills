@@ -9,7 +9,8 @@ The input has entries. Each entry starts with "=== k=...". Fields:
 - CLAUDE AFTER: what Claude said just after. Use it to see how Claude understood the feedback. "(same as next entry's CLAUDE BEFORE)" means it is printed there.
 - source=history entries have no Claude text. Infer what you can from ME alone.
 - "part i/n" means one long entry is split; treat the parts as one entry.
-- Entries from one conversation appear in order, so read earlier entries for context. Blocks marked "context only" show the turns just before or after this batch. Use them to understand the feedback, but log nothing from them: they are logged in another batch.
+- Each batch holds whole conversations, in order. Read the whole conversation before you log anything, so you know what the developer was trying to do and what Claude had already been told. Feedback often refers back to an earlier instruction or a goal set at the start: say so in "error" when Claude ignored or forgot it.
+- Blocks marked "context only" (how the conversation started, the conversation so far, later in this conversation) show turns that are logged elsewhere or are outside the selected range. Use them to understand the feedback, but log nothing from them.
 
 Feedback is any time the developer reacts to Claude's work or behaviour: a correction, pushback, complaint, redirect, a question that shows doubt ("did you test it?", "why is it like this?"), a repeat of an instruction Claude ignored, a request to redo, or praise of a specific method. Short ones count ("look again", "simplify", "no", "bit lame"). Not feedback: a new request with no reaction to earlier work, chit-chat, and bare approvals such as "yes" or "go".
 
