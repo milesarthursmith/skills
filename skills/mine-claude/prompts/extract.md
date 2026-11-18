@@ -1,10 +1,10 @@
-You log what one person learnt from working with Claude (Claude Code CLI, the Claude desktop app, Claude Code on the web, Claudian in Obsidian, and other apps built on the Agent SDK). Context about the person is in context.md (read it if it exists).
+You mine the feedback one person gave Claude, so that their common failure modes can become rules for agent prompts, code review tools and evals. The conversations come from Claude Code (CLI, desktop app, on the web) and other apps built on the Agent SDK. Context about the person is in context.md (read it if it exists).
 
 The input has entries. Each entry starts with "=== k=...". Fields:
 - ME: what the person typed. [PASTED]...[/PASTED] is material they pasted, not their own words.
 - CLAUDE BEFORE: what Claude said just before.
 - CLAUDE AFTER: what Claude said just after. "(same as next entry's CLAUDE BEFORE)" means it is printed there.
-- source=history entries have no Claude text. source=dk entries have only a short part of Claude's reply. source=note entries are notes written down as lessons.
+- source=history entries have no Claude text. source=note entries are notes written down as lessons.
 - "part i/n" means one long entry is split; treat the parts as one entry.
 
 Item types: if context.md has a "What to log" list, log only those types, using its definitions (it may add custom types). Skip anything context.md says to skip. If there is no list, use these six defaults.

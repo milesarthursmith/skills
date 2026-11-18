@@ -1,11 +1,11 @@
 ---
 name: mine-claude
-description: Mine your own Claude conversations for what you learnt. Reads local Claude Code transcripts (CLI, desktop app, Claudian, Agent SDK apps), Claude Code on the web sessions, history.jsonl and dk-mode. Logs every failure, correction, lesson, skill used and tool limit with an exact quote, checks each quote against the source, and writes a short learnings summary. Use when the user says "mine my Claude conversations", "what have I learnt from Claude", "failure log", "lessons from my sessions", or wants a retro on how they work with Claude.
+description: Mine the human feedback in your Claude conversations for common failure modes, then turn them into rules for agent prompts, code review tools (such as CodeRabbit), CLAUDE.md, hooks or evals. Reads local Claude Code transcripts (CLI, desktop app, Agent SDK apps), Claude Code on the web sessions and history.jsonl. Logs every failure and correction with an exact quote and checks each quote against the source. Use when the user says "mine my Claude conversations", "find my common failure modes", "failure log", "turn my corrections into rules", or wants review rules or prompt guardrails built from real feedback.
 ---
 
 # mine-claude
 
-Turns Claude conversations into one log, with a row per item and an exact quote on each row. A script checks every quote against the source text. The user chooses what to log, which sources and dates to read, and what to do with the log afterwards. The core output is the log. A themes report and rule proposals are optional extras.
+Finds the places where a person corrected Claude, pushed back or had to redo work, and turns them into one log, with a row per item and an exact quote on each row. Grouped, the log shows the failure modes that repeat. Those become rules for agent prompts, review tools and evals. A script checks every quote against the source text. The user chooses what to log, which sources and dates to read, and what to do with the log afterwards. The core output is the log. A failure-mode catalogue and rules for a target are optional extras.
 
 `SKILL` below means this skill's folder. `DATA` means `~/mine-claude-data` unless the user names another place. Keep `DATA` out of git and cloud sync: transcripts hold anything pasted into chats, keys included. Never print or copy a credential you see in a transcript.
 
@@ -17,7 +17,6 @@ Turns Claude conversations into one log, with a row per item and an exact quote 
 | Messages typed mid-turn | Same files | Yes |
 | Claude Code on the web | Downloaded to `DATA/web` (step 2) | Yes |
 | Prompts from deleted transcripts | `~/.claude/history.jsonl` | No |
-| dk-mode corrections | `~/.claude/plugins/data/dk-mode*/memory/dk.jsonl` | A short part |
 | Notes | Any files the user names | n/a |
 
 It does not read claude.ai chats, screenshots or subagent transcripts. Nothing is truncated.
@@ -31,7 +30,7 @@ It does not read claude.ai chats, screenshots or subagent transcripts. Nothing i
 - Which sources (all available).
 - Date range (all time).
 - Projects to include or skip (all).
-- What they want at the end (the log only; or a themes report; or rule proposals for CLAUDE.md or memory).
+- What they want at the end (the log only; or a failure-mode catalogue; or rules for one target: an agent system prompt, a code review config such as `.coderabbit.yaml`, CLAUDE.md, a hook, or eval cases).
 
 Write the answers into `DATA/context.md`, starting from `SKILL/context.example.md`. Add one line on what they work on and the project labels, from the conversation or memory if you can.
 
@@ -86,7 +85,7 @@ python3 -I SKILL/scripts/merge.py DATA/messages.jsonl DATA/batches DATA/learning
 
 It writes `learnings_log.jsonl` and `.csv`. It also prints the verified-quote rate, the worst batches and any batch with no output. Rerun missing batches once. Below 95% verified, look at the worst batches before going on.
 
-If the user asked for the log only, stop here. Give them the path, the row counts by type, and the verified-quote rate. Steps 6 and 7 run only if they asked for a themes report or rule proposals.
+If the user asked for the log only, stop here. Give them the path, the row counts by type, and the verified-quote rate. Steps 6 and 7 run only if they asked for a failure-mode catalogue or rules.
 
 **6. Group into themes with Sonnet (optional).**
 
@@ -109,9 +108,15 @@ Max about 1,200 words. Return the report as text.
 
 **7. Write the output they asked for (optional).**
 
-Rule proposals: from the themes, draft each repeated failure as one rule for CLAUDE.md or memory, with the item count and one quote. Show them to the user. Change no file without a yes.
+Rules for a target: from the themes, draft each repeated failure mode as one rule in the target's format, with its item count and one quote as evidence:
+- Agent system prompt: a short "Known failure modes" block: what it looks like, what to do instead.
+- Code review tool: review instructions by file path (for CodeRabbit, `reviews.path_instructions` in `.coderabbit.yaml`) for failures that show up in code.
+- CLAUDE.md or memory: one line per rule.
+- Hook: a check a script can run (for example, block writes to /tmp).
+- Evals: one test case per failure mode, built from the quoted exchange.
+Show the drafts to the user. Change no file without a yes.
 
-Themes report: write `DATA/learnings.md` (or where the user wants it). Order:
+Failure-mode catalogue: write `DATA/failure_modes.md` (or where the user wants it). Order:
 1. The few rules that appear in most groups, each with one quote and a rough item count.
 2. A short section for each group.
 3. Platform limits, what worked, and usage (step 8).
@@ -120,7 +125,7 @@ Themes report: write `DATA/learnings.md` (or where the user wants it). Order:
 Then verify the quotes:
 
 ```bash
-python3 -I SKILL/scripts/check_quotes.py DATA/learnings.md DATA/learnings_log.jsonl
+python3 -I SKILL/scripts/check_quotes.py DATA/failure_modes.md DATA/learnings_log.jsonl
 ```
 
 Fix or drop every quote it reports as MISSING.
@@ -145,6 +150,6 @@ Run steps 6 and 7 on the combined file.
 
 ## Notes
 
-- Lost transcripts cannot be rebuilt. Before you call something lost, check `history.jsonl`, dk-mode, migration backups and any Claudian or app folders. Claudian keeps only titles and resumes from Claude Code's own transcripts.
+- Lost transcripts cannot be rebuilt. Before you call something lost, check `history.jsonl`, migration backups and any app folders that wrap Claude Code. Some wrappers keep only titles and resume from Claude Code's own transcripts.
 - Report the verified-quote rate with the results. A row whose quote does not match is marked `quote_verified=false`. It is not deleted.
 - The `k` reference in each row points back to `DATA/messages.jsonl`, which holds the full message and Claude's replies on each side.

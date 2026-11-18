@@ -5,7 +5,6 @@ Sources (column "source"):
   queued      messages typed mid-turn in those transcripts
   web         Claude Code on the web sessions and project conversations (download first, see README)
   history     ~/.claude/history.jsonl prompts whose transcript no longer exists (your words only)
-  dk          dk-mode corrections from sessions whose transcript no longer exists
   note        any notes files you name with --notes
 
 Nothing is truncated.
@@ -13,8 +12,8 @@ Nothing is truncated.
 Usage:
   python3 -I scripts/build_messages.py data/messages.jsonl
       [--claude-dir ~/.claude] [--web-dir ~/mine-claude-data/web] [--my-user-id user_XXXX]
-      [--claudian-dir ~/vault/.claudian] [--notes "~/notes/*.md" ...] [--no-history] [--no-dk]
-      [--sources transcript,queued,web,history,dk,note] [--since 2026-01-01] [--until 2026-12-31]
+      [--claudian-dir ~/vault/.claudian] [--notes "~/notes/*.md" ...] [--no-history]
+      [--sources transcript,queued,web,history,note] [--since 2026-01-01] [--until 2026-12-31]
       [--include REGEX] [--exclude REGEX]
 
 --include / --exclude match the project, title and message text (case-insensitive).
@@ -32,7 +31,6 @@ ap.add_argument("--my-user-id", default=os.environ.get("MY_USER_ID", ""), help="
 ap.add_argument("--claudian-dir", action="append", default=[], help="a vault's .claudian folder, for titles")
 ap.add_argument("--notes", action="append", default=[], help="glob of notes files to include")
 ap.add_argument("--no-history", action="store_true")
-ap.add_argument("--no-dk", action="store_true")
 ap.add_argument("--sources", default="", help="comma list of sources to keep (default: all)")
 ap.add_argument("--since", default="", help="keep rows on or after this date, YYYY-MM-DD")
 ap.add_argument("--until", default="", help="keep rows on or before this date, YYYY-MM-DD")
@@ -180,26 +178,7 @@ if not a.no_history and (CD / "history.jsonl").exists():
         rows.append({"source": "history", "session": sid, "project": e.get("project", ""), "title": "",
                      "ts": ts, "uuid": "", "text": t, "claude_before": "", "claude_after": ""})
 
-# 4. dk-mode corrections from sessions whose transcript is gone
-short = {s[:8] for s in have_sessions}
-have_text = {re.sub(r"\s+", " ", r["text"]).strip() for r in rows}  # dk often repeats a history.jsonl prompt
-if not a.no_dk:
-    for f in glob.glob(str(CD / "plugins/data/dk-mode*/memory/dk.jsonl")):
-        for line in open(f, errors="ignore"):
-            try:
-                d = json.loads(line)
-            except Exception:
-                continue
-            t, s = (d.get("user_verbatim") or "").strip(), str(d.get("session", ""))
-            nt = re.sub(r"\s+", " ", t).strip()
-            if not t or s[:8] in short or t.startswith(SKIP_START) or (s, t) in seen or nt in have_text:
-                continue
-            seen.add((s, t)); have_text.add(nt)
-            rows.append({"source": "dk", "session": s, "project": d.get("cwd", ""), "title": "dk-mode correction (transcript lost)",
-                         "ts": d.get("ts", ""), "uuid": d.get("uuid", ""), "text": t,
-                         "claude_before": d.get("assistant_context") or "", "claude_after": ""})
-
-# 5. Notes
+# 4. Notes
 for g in a.notes:
     for f in sorted(glob.glob(os.path.expanduser(g), recursive=True)):
         t = Path(f).read_text(errors="ignore").strip()
