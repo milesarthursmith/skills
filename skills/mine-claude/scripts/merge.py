@@ -31,7 +31,7 @@ for f in sorted(glob.glob(f"{bdir}/out_b*.jsonl")):
         nq = norm(q)
         found = next((name for name, t in hay.items() if nq and nq in norm(t)), "")
         rows.append({
-            "date": (m.get("ts") or "")[:10], "source": m["source"], "session": m.get("session", ""),
+            "date": (m.get("ts") or "")[:10], "source": m["source"], "account": m.get("account", ""), "session": m.get("session", ""),
             "title": m.get("title") or "", "project": x.get("project", ""),
             "context": x.get("context", ""), "error": x.get("error", ""), "wanted": x.get("wanted", ""),
             "sentiment": x.get("sentiment", ""), "quote": q, "quote_from": found or x.get("quote_from", ""),
@@ -39,7 +39,7 @@ for f in sorted(glob.glob(f"{bdir}/out_b*.jsonl")):
             "claude_after": m["claude_after"], "claude_actions": m.get("claude_actions", ""), "ref": f"k={k}", "batch": f.rsplit("_", 1)[-1].split(".")[0],
         })
 
-cols = ["log_id", "date", "source", "project", "title", "context", "error", "wanted", "sentiment", "quote",
+cols = ["log_id", "date", "source", "account", "project", "title", "context", "error", "wanted", "sentiment", "quote",
         "quote_from", "quote_verified", "my_message", "claude_before", "claude_actions", "claude_after", "session", "ref", "batch"]
 rows.sort(key=lambda r: (r["date"] or "9999", r["ref"]))
 for i, r in enumerate(rows):

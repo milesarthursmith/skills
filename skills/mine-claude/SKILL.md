@@ -55,7 +55,7 @@ python3 -I SKILL/scripts/build_messages.py DATA/messages.jsonl [--my-user-id use
 python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches [--size 150000] [--earlier 3] [--later 2]
 ```
 
-Show the row counts by source and month. Months with only `history` rows mean the transcripts were deleted: say so.
+Show the row counts by source, account and month. CLI transcripts do not record the Claude account; the desktop app does. Name accounts with `--account-label UUIDPREFIX=name`, and use `--include`/`--exclude` on project paths to keep work and personal projects apart. Months with only `history` rows mean the transcripts were deleted: say so.
 
 **4. Understand (Sonnet by default).** Tell the user the batch count and the model first. There is one file per conversation (long ones split into parts of up to 150 KB). As a guide, 5,000 messages make about 450 files. Sonnet reads intent and context better than Haiku; Haiku costs less and suits a quick first pass. Opus suits small, high-stakes runs.
 
@@ -122,7 +122,14 @@ python3 -I SKILL/scripts/cluster_apply.py DATA/feedback_log.jsonl DATA/clusters 
 
 If more than 2% of rows are unassigned or not merged, rerun the pass-1 chunks they came from. Show the user the top clusters with row counts, the date range of each, and how many months each was seen. A cluster seen across many months is a failure that a rule has not fixed.
 
-**7. Rules for a target (only if asked).** For each cluster the user picks (default: the negative clusters seen in 3 or more months), write the cluster's rule in the target's format, with its row count and one verified quote as evidence:
+**7. Rules for a target (only if asked).** Put each failure mode where it is cheapest to stop it, in this order:
+1. A hook, if a script can check it (block `git push` to main, block writes outside the repo, fail a "done" with no test run in the turn). Hooks are enforced. Prompt rules are only advice.
+2. A review rule, if it shows in a diff (missing test, unchecked write, migration with no rollback).
+3. CLAUDE.md or AGENTS.md, for the top 5 to 10 behaviour failures only. One line each, as trigger, then action: "Before you say a fix works, run it and show the output." Long lists get skipped.
+4. A failure-mode reference the agent loads when relevant (a skill or a doc it is told to read): every cluster, each with its rule and one real bad-then-better example from the log.
+5. Eval cases, to prove a rule changes behaviour.
+
+ For each cluster the user picks (default: the negative clusters seen in 3 or more months), write the cluster's rule in the target's format, with its row count and one verified quote as evidence:
 - Code review tool: instructions by file path (for CodeRabbit, `reviews.path_instructions` in `.coderabbit.yaml`) for failures that show in a diff, such as a missing test, a migration with no rollback, or an unchecked write.
 - CLAUDE.md: one line per rule, for failures in how Claude works (claims done without running tests, edits the wrong branch).
 - Hook: a check a script can run before or after a tool call (for example, block `git push` to main, block writes outside the repo).

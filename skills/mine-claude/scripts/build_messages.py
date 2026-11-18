@@ -13,7 +13,7 @@ Nothing is truncated.
 Usage:
   python3 -I scripts/build_messages.py messages.jsonl
       [--claude-dir ~/.claude] [--web-dir ~/mine-claude-data/web] [--my-user-id user_XXXX]
-      [--strip-tag NAME ...] [--no-history]
+      [--strip-tag NAME ...] [--no-history] [--account-label UUIDPREFIX=name ...]
       [--sources transcript,queued,web,history] [--since YYYY-MM-DD] [--until YYYY-MM-DD]
       [--include REGEX] [--exclude REGEX]
 
@@ -31,6 +31,7 @@ ap.add_argument("--web-dir", default="~/mine-claude-data/web")
 ap.add_argument("--my-user-id", default=os.environ.get("MY_USER_ID", ""), help="keep only your posts in web project threads")
 ap.add_argument("--strip-tag", action="append", default=[], help="tag name your hooks inject into prompts, to remove")
 ap.add_argument("--no-history", action="store_true")
+ap.add_argument("--account-label", action="append", default=[], help="name an account: UUIDPREFIX=name (repeatable)")
 ap.add_argument("--sources", default="", help="comma list of sources to keep (default: all)")
 ap.add_argument("--since", default="", help="keep rows on or after this date, YYYY-MM-DD")
 ap.add_argument("--until", default="", help="keep rows on or before this date, YYYY-MM-DD")
@@ -75,15 +76,27 @@ def clean_user(t):
     return t
 
 
-# Titles: transcript title entries, the desktop app's session files (macOS), the web index
-titles = {}
+# Titles and accounts: transcript entries, the desktop app's session files (macOS), the web index.
+# The desktop app stores sessions under <account uuid>/<org uuid>/; CLI transcripts usually record no account.
+titles, accounts = {}, {}
 for f in glob.glob(os.path.expanduser("~/Library/Application Support/Claude/claude-code-sessions/*/*/local_*.json")):
     try:
         j = json.load(open(f))
-        if j.get("cliSessionId") and j.get("title"):
-            titles.setdefault(j["cliSessionId"], j["title"])
+        if j.get("cliSessionId"):
+            if j.get("title"):
+                titles.setdefault(j["cliSessionId"], j["title"])
+            acct, org = Path(f).parts[-3], Path(f).parts[-2]
+            accounts[j["cliSessionId"]] = f"account {acct[:8]} / org {org[:8]} (desktop app)"
     except Exception:
         pass
+labels = dict(x.split("=", 1) for x in a.account_label)  # e.g. 814f1de9=work
+
+
+def account_name(v):
+    for uid, name in labels.items():
+        if uid in v:
+            return f"{name} ({v})"
+    return v
 web_dir = Path(os.path.expanduser(a.web_dir))
 if (web_dir / "index.json").exists():
     for s in json.loads((web_dir / "index.json").read_text()):
@@ -99,6 +112,9 @@ def add_session(sid, entries, project, src_main):
         elif e.get("type") == "ai-title" and not titles.get(sid):
             titles[sid] = e.get("aiTitle") or ""
     have_sessions.add(sid)
+    if sid not in accounts:
+        found = next((e.get("accountUuid") for e in entries if e.get("accountUuid")), None)
+        accounts[sid] = f"account {found[:8]} (transcript)" if found else ("web" if src_main == "web" else "cli (not recorded)")
 
     def is_user(e):
         return e.get("type") == "user" and clean_user(text_of(e))
@@ -142,7 +158,7 @@ def add_session(sid, entries, project, src_main):
         if not src or not t or (sid, t) in seen:
             continue
         seen.add((sid, t))
-        rows.append({"source": src, "session": sid, "project": project, "title": titles.get(sid, ""),
+        rows.append({"source": src, "session": sid, "account": account_name(accounts[sid]), "project": project, "title": titles.get(sid, ""),
                      "ts": e.get("timestamp") or "", "uuid": e.get("uuid") or "", "text": t,
                      "claude_before": ctx(i, -1), "claude_actions": actions(i), "claude_after": ctx(i, 1)})
 
@@ -188,7 +204,7 @@ if not a.no_history and (CD / "history.jsonl").exists():
             continue
         seen.add((sid, t))
         ts = datetime.datetime.utcfromtimestamp(e["timestamp"] / 1000).isoformat() + "Z" if e.get("timestamp") else ""
-        rows.append({"source": "history", "session": sid, "project": e.get("project", ""), "title": "",
+        rows.append({"source": "history", "session": sid, "account": "cli (not recorded)", "project": e.get("project", ""), "title": "",
                      "ts": ts, "uuid": "", "text": t, "claude_before": "", "claude_actions": "", "claude_after": ""})
 
 # Filters
@@ -239,4 +255,12 @@ print(f"{n_local} local transcripts, {n_web} web sessions")
 if len(rows) != before:
     print(f"filters kept {len(rows)} of {before} rows")
 print(len(rows), "rows", dict(Counter(r["source"] for r in rows)))
+print("by account:", dict(Counter(r["account"] for r in rows)))
+# Current CLI login, for reference (CLI transcripts ran under whichever login was active at the time).
+try:
+    oa = json.load(open(os.path.expanduser("~/.claude.json"))).get("oauthAccount") or {}
+    if oa.get("accountUuid"):
+        print(f"current CLI login: account {oa['accountUuid'][:8]} / org {(oa.get('organizationUuid') or '')[:8]} ({oa.get('organizationName', '')})")
+except Exception:
+    pass
 print("months:", sorted(Counter((r["ts"] or "none")[:7] for r in rows).items()))
