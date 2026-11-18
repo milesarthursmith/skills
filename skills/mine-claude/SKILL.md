@@ -1,42 +1,42 @@
 ---
 name: mine-claude
-description: Mine the human feedback in your Claude Code conversations for the failure modes that repeat when building software, then turn them into rules for code review tools (such as CodeRabbit), CLAUDE.md, hooks, agent prompts or evals. Reads local Claude Code transcripts (CLI, desktop app, Agent SDK apps), Claude Code on the web sessions and history.jsonl. Logs every failure and correction with an exact quote and checks each quote against the source. Use when the user says "mine my Claude conversations", "find my common failure modes", "failure log", "turn my corrections into rules", or wants review rules or prompt guardrails built from real feedback.
+description: Mine the human feedback in your Claude Code conversations and cluster it into the failure modes that keep coming back when you build software. Pulls every correction, pushback and complaint from your transcripts with its context and an exact quote, lets AI find the clusters (no preset categories), and turns them into rules for code review tools such as CodeRabbit, CLAUDE.md, hooks, coding-agent prompts or evals. Use when the user says "mine my Claude conversations", "find my common failure modes", "what does Claude keep getting wrong", "turn my corrections into rules", or wants review rules or guardrails built from real feedback.
 ---
 
 # mine-claude
 
-For developers who build software with Claude Code. Finds the places where you corrected Claude, pushed back or had to redo work, and turns them into one log, with a row per item and an exact quote on each row. Grouped, the log shows the failure modes that repeat. Those become rules for code review, CLAUDE.md, hooks, agent prompts and evals. A script checks every quote against the source text. The user chooses what to log, which sources and dates to read, and what to do with the log afterwards. The core output is the log. A failure-mode catalogue and rules for a target are optional extras.
+Every time you correct Claude Code, you write down a failure mode. This skill collects those corrections from your transcripts, works out what Claude was doing and what went wrong, and clusters them so the repeat failures stand out. Each cluster comes with a rule you can put where it will stop the failure: a review tool, CLAUDE.md, a hook, an agent prompt or an eval.
 
-`SKILL` below means this skill's folder. `DATA` means `~/mine-claude-data` unless the user names another place. Keep `DATA` out of git and cloud sync: transcripts hold anything pasted into chats, keys included. Never print or copy a credential you see in a transcript.
+Three stages:
+1. **Collect.** Scripts read every message you typed, with Claude's reply before and after. Nothing is cut.
+2. **Understand.** Haiku reads each exchange. For every piece of feedback it writes the context, the error, what you wanted, and an exact quote. A script checks each quote against the source.
+3. **Cluster.** Sonnet groups the feedback into failure modes found in the data, in two passes (per chunk, then merged). A script assigns every row to a cluster and counts them.
 
-## What it reads
+`SKILL` means this skill's folder. `DATA` means `~/mine-claude-data` unless the user names another place. Keep `DATA` out of git and cloud sync: transcripts hold anything pasted into chats, keys included. Never print or copy a credential you see in a transcript.
 
-| Source | Where | Has Claude's replies |
+## Sources
+
+| Source | Where | Claude's replies |
 |---|---|---|
-| Local transcripts | `~/.claude/projects/*/*.jsonl` | Yes, full |
-| Messages typed mid-turn | Same files | Yes |
-| Claude Code on the web | Downloaded to `DATA/web` (step 2) | Yes |
-| Prompts from deleted transcripts | `~/.claude/history.jsonl` | No |
-| Notes | Any files the user names | n/a |
-
-It does not read claude.ai chats, screenshots or subagent transcripts. Nothing is truncated.
-
-Optional source: if the user runs the dk-mode plugin, `--dk-mode` also reads its saved corrections (`~/.claude/plugins/data/dk-mode*/memory/dk.jsonl`). These recover feedback from sessions whose transcript is gone. Leave it off for everyone else.
+| Local transcripts | `~/.claude/projects/*/*.jsonl` (CLI, desktop app, Agent SDK apps) | Full |
+| Messages typed mid-turn | Same files | Full |
+| Claude Code on the web | Downloaded to `DATA/web` (step 2) | Full |
+| Prompts from deleted transcripts | `~/.claude/history.jsonl` | None |
 
 ## Steps
 
-**0. Check retention.** Claude Code deletes local transcripts after 30 days unless `cleanupPeriodDays` is set in `~/.claude/settings.json`. Read the file. If the setting is missing, tell the user what is at risk and offer to set it to 3650. Do not change the file without a yes.
+**0. Check retention.** Claude Code deletes local transcripts after 30 days unless `cleanupPeriodDays` is set in `~/.claude/settings.json`. Read the file. If the setting is missing, tell the user how much history is at risk and offer to set it to 3650. Change the file only after a yes.
 
-**1. Agree the scope, then set up `DATA`.** `mkdir -p ~/mine-claude-data`. Ask the user these in one go (offer the defaults in brackets; skip any the request already answers):
-- What to log (all six default types; they can drop some or add their own, such as good prompts or decisions).
-- Which sources (all available).
+**1. Agree the scope.** `mkdir -p ~/mine-claude-data`. Ask in one message, offering the defaults in brackets, and skip anything the request already answers:
+- Sources (all available).
 - Date range (all time).
-- Projects to include or skip (all).
-- What they want at the end (the log only; or a failure-mode catalogue; or rules for one target: a code review config such as `.coderabbit.yaml`, CLAUDE.md, a hook, a coding agent's system prompt, or eval cases).
+- Projects or repos to include or skip (all).
+- Tags your own hooks inject into prompts, if any (none). Check a few recent prompts in a transcript for `<tag>` blocks that are not Claude Code's own.
+- What they want at the end (clusters; or clusters plus rules for one target, see step 7).
 
-Write the answers into `DATA/context.md`, starting from `SKILL/context.example.md`. Add one line on what they work on and the project labels, from the conversation or memory if you can.
+Write `DATA/context.md` from `SKILL/context.example.md`: what they build, project labels if they have them, and what to skip.
 
-**2. Web sessions (ask first).** Only if the user uses Claude Code on the web. This uses private Anthropic endpoints through a patched `claude-code-transcripts` (the published one is broken, issue #77; PR #93 fixes it), so it can break without notice. It needs `uv` and a Claude Code login. Run from `DATA`:
+**2. Web sessions (only if they use Claude Code on the web; ask first).** This uses Anthropic endpoints that are not public, through a patched `claude-code-transcripts` (PR #93 fixes the published version's issue #77). It can stop working without notice. Needs `uv` and a Claude Code login. Run from `DATA`:
 
 ```bash
 cd ~/mine-claude-data
@@ -45,26 +45,27 @@ uv run --with "git+https://github.com/simonw/claude-code-transcripts@refs/pull/9
 python3 -I SKILL/scripts/find_my_user_id.py web/my_messages.jsonl
 ```
 
-Both download scripts skip files already saved. One 403 is normal. The last command lists posters in project threads: ask the user which `user_...` ID is theirs.
+The download scripts skip files already saved. One 403 is normal. The last command lists posters in shared project threads: ask which `user_...` ID is the user's.
 
-**3. Build messages and batches.**
+**3. Collect.**
 
 ```bash
-python3 -I SKILL/scripts/build_messages.py DATA/messages.jsonl [--my-user-id user_XXXX] [--claudian-dir <vault>/.claudian] [--notes "<glob>"]
+python3 -I SKILL/scripts/build_messages.py DATA/messages.jsonl [--my-user-id user_XXXX] [--strip-tag NAME ...] \
+  [--sources transcript,queued,web,history] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--include REGEX] [--exclude REGEX]
 python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches
 ```
 
-`--claudian-dir` adds Claudian titles (repeatable). `--notes` adds lesson files such as memory or retro notes (repeatable). Apply the step 1 scope with `--sources transcript,web,...`, `--since YYYY-MM-DD`, `--until YYYY-MM-DD`, `--include REGEX` and `--exclude REGEX` (these match project, title and message text). Show the user the row counts by source and month. Months with only `history` rows mean the full transcripts were deleted. Say so.
+Show the row counts by source and month. Months with only `history` rows mean the transcripts were deleted: say so.
 
-**4. Extract with Haiku.** Tell the user the batch count first. As a guide, 5,000 messages make about 125 batches of 80 KB.
+**4. Understand (Haiku).** Tell the user the batch count first. As a guide, 5,000 messages make about 125 batches of 80 KB.
 
-Route A (fast). Check `claude -p --model haiku "say ok"` works. If it does:
+Route A, if `claude -p --model haiku "say ok"` works:
 
 ```bash
-python3 -I SKILL/scripts/run_extract.py DATA/batches SKILL/prompts/extract.md --workers 6
+python3 -I SKILL/scripts/run_extract.py DATA/batches SKILL/prompts/extract.md --context DATA/context.md --workers 6
 ```
 
-Route B (no headless login). Launch `general-purpose` subagents with `model: haiku`, 3 batches each, up to 10 at a time. Start a new one as each finishes. Prompt:
+Route B, otherwise: `general-purpose` subagents with `model: haiku`, 3 batches each, up to 10 at a time, starting a new one as each finishes. Prompt:
 
 ```
 Read SKILL/prompts/extract.md and DATA/context.md (absolute paths). Follow the instructions
@@ -82,76 +83,80 @@ If an agent replies with JSON Lines instead of writing them, save them to the na
 **5. Merge and check quotes.**
 
 ```bash
-python3 -I SKILL/scripts/merge.py DATA/messages.jsonl DATA/batches DATA/learnings_log
+python3 -I SKILL/scripts/merge.py DATA/messages.jsonl DATA/batches DATA/feedback_log
 ```
 
-It writes `learnings_log.jsonl` and `.csv`. It also prints the verified-quote rate, the worst batches and any batch with no output. Rerun missing batches once. Below 95% verified, look at the worst batches before going on.
+Rerun any batch listed as missing output. Below 95% verified quotes, inspect the worst batches before you go on.
 
-If the user asked for the log only, stop here. Give them the path, the row counts by type, and the verified-quote rate. Steps 6 and 7 run only if they asked for a failure-mode catalogue or rules.
-
-**6. Group into themes with Sonnet (optional).**
+**6. Cluster (Sonnet, two passes).**
 
 ```bash
-python3 -I SKILL/scripts/split_for_synthesis.py DATA/learnings_log.jsonl DATA/synth
+python3 -I SKILL/scripts/cluster_prep.py chunks DATA/feedback_log.jsonl DATA/clusters
 ```
 
-Launch one `general-purpose` subagent with `model: sonnet` for each `DATA/synth/g*.txt`, all at once:
+Pass 1: one `general-purpose` subagent with `model: sonnet` per `DATA/clusters/chunk_XX.txt`, all at once:
 
 ```
-Read the whole file <path> in chunks (offset/limit; allow_large if needed). Each line is:
-#log_id date [project] type/category | summary | LESSON | Q: quote.
-Group the rows into themes. Merge rows that teach the same thing. Rank by row count.
-For each theme give: a rule in one plain sentence; the row count, date range, and whether
-it kept happening after it was first logged; 2 or 3 log_ids; one quote copied exactly from
-a Q: field. Then list tool and platform limits worth keeping (one line each, with a log_id)
-and things that worked (one line each, with a log_id). Plain English, short sentences.
-Max about 1,200 words. Return the report as text.
+Read SKILL/prompts/cluster_pass1.md, then read all of <chunk path> (offset/limit chunks;
+allow_large if needed). Follow the instructions. Return only the JSON object.
 ```
 
-**7. Write the output they asked for (optional).**
+Save each reply to `DATA/clusters/chunk_XX.json`. Then:
 
-Rules for a target: from the themes, draft each repeated failure mode as one rule in the target's format, with its item count and one quote as evidence:
-- Code review tool: review instructions by file path (for CodeRabbit, `reviews.path_instructions` in `.coderabbit.yaml`) for failures that show up in a diff, such as a missing test, a migration with no rollback, or an unchecked write.
+```bash
+python3 -I SKILL/scripts/cluster_prep.py pass2 DATA/clusters
+```
+
+Pass 2: one `general-purpose` subagent with `model: sonnet`:
+
+```
+Read SKILL/prompts/cluster_pass2.md, then read all of DATA/clusters/pass2_input.txt.
+Follow the instructions. Return only the JSON object.
+```
+
+Save the reply to `DATA/clusters/final.json`. Then:
+
+```bash
+python3 -I SKILL/scripts/cluster_apply.py DATA/feedback_log.jsonl DATA/clusters DATA/feedback
+```
+
+If more than 2% of rows are unassigned or not merged, rerun the pass-1 chunks they came from. Show the user the top clusters with row counts, the date range of each, and how many months each was seen. A cluster seen across many months is a failure that a rule has not fixed.
+
+**7. Rules for a target (only if asked).** For each cluster the user picks (default: the negative clusters seen in 3 or more months), write the cluster's rule in the target's format, with its row count and one verified quote as evidence:
+- Code review tool: instructions by file path (for CodeRabbit, `reviews.path_instructions` in `.coderabbit.yaml`) for failures that show in a diff, such as a missing test, a migration with no rollback, or an unchecked write.
 - CLAUDE.md: one line per rule, for failures in how Claude works (claims done without running tests, edits the wrong branch).
 - Hook: a check a script can run before or after a tool call (for example, block `git push` to main, block writes outside the repo).
-- Agent system prompt: a short "Known failure modes" block for coding agents and review bots: what it looks like, what to do instead.
-- Evals: one test case per failure mode, built from the quoted exchange.
-Show the drafts to the user. Change no file without a yes.
+- Coding-agent prompt: a short "Known failure modes" block: what it looks like, what to do instead.
+- Evals: one test case per cluster, built from a quoted exchange.
 
-Failure-mode catalogue: write `DATA/failure_modes.md` (or where the user wants it). Order:
-1. The few rules that appear in most groups, each with one quote and a rough item count.
-2. A short section for each group.
-3. Platform limits, what worked, and usage (step 8).
-4. Coverage: date range of full text, range with history only, anything lost, and where the log is.
-
-Then verify the quotes:
+Write the drafts to `DATA/rules.md`, then check the quotes:
 
 ```bash
-python3 -I SKILL/scripts/check_quotes.py DATA/failure_modes.md DATA/learnings_log.jsonl
+python3 -I SKILL/scripts/check_quotes.py DATA/rules.md DATA/feedback_log.jsonl
 ```
 
-Fix or drop every quote it reports as MISSING.
+Fix or drop every quote reported as MISSING. Show the drafts. Change no project file without a yes.
 
-**8. Usage counts (no model).**
+**8. Usage counts (optional, no model).**
 
 ```bash
 python3 -I SKILL/scripts/count_usage.py DATA/usage_by_month.csv
 ```
 
-Counts slash commands, skills, subagents, MCP servers and tool errors by month, from local transcripts.
+Counts slash commands, skills, subagents, MCP servers and tool errors by month.
 
 ## Two machines
 
-Run steps 1 to 5 on each. Copy the other machine's `learnings_log.jsonl` across by hand (not through git), then:
+Run steps 1 to 5 on each machine. Copy the other machine's `feedback_log.jsonl` across by hand (not through git), then:
 
 ```bash
-python3 -I SKILL/scripts/combine_logs.py DATA/learnings_log_all.jsonl work=DATA/learnings_log.jsonl home=<path>/learnings_log.jsonl
+python3 -I SKILL/scripts/combine_logs.py DATA/feedback_log_all.jsonl work=DATA/feedback_log.jsonl home=<path>/feedback_log.jsonl
 ```
 
 Run steps 6 and 7 on the combined file.
 
 ## Notes
 
-- Lost transcripts cannot be rebuilt. Before you call something lost, check `history.jsonl`, migration backups and any app folders that wrap Claude Code. Some wrappers keep only titles and resume from Claude Code's own transcripts.
-- Report the verified-quote rate with the results. A row whose quote does not match is marked `quote_verified=false`. It is not deleted.
-- The `k` reference in each row points back to `DATA/messages.jsonl`, which holds the full message and Claude's replies on each side.
+- Report the verified-quote rate with every result. Rows whose quote does not match stay in the log with `quote_verified=false`.
+- `ref` (k=N) in each row points to `DATA/messages.jsonl`, which holds the full message and Claude's replies on each side.
+- Lost transcripts cannot be rebuilt. Before you call a period lost, check `history.jsonl` and any backups the user has.

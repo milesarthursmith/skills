@@ -1,24 +1,22 @@
-"""Build one JSONL of every message you typed to Claude, full text, with Claude's reply before and after.
+"""Build one JSONL of every message you typed to Claude Code, full text, with Claude's reply before and after.
 
 Sources (column "source"):
-  transcript  local Claude Code transcripts (CLI, desktop app Code tab, Claudian, other Agent SDK apps)
-  queued      messages typed mid-turn in those transcripts
-  web         Claude Code on the web sessions and project conversations (download first, see README)
-  history     ~/.claude/history.jsonl prompts whose transcript no longer exists (your words only)
-  note        any notes files you name with --notes
-  dk          optional, off by default: dk-mode plugin corrections (--dk-mode), for sessions whose transcript is gone
+  transcript  local Claude Code transcripts in <claude-dir>/projects (CLI, desktop app, Agent SDK apps)
+  queued      messages typed while Claude was mid-turn, from the same files
+  web         Claude Code on the web sessions and project threads (download first, see SKILL.md)
+  history     <claude-dir>/history.jsonl prompts from sessions whose transcript is gone (your words only)
 
 Nothing is truncated.
 
 Usage:
-  python3 -I scripts/build_messages.py data/messages.jsonl
+  python3 -I scripts/build_messages.py messages.jsonl
       [--claude-dir ~/.claude] [--web-dir ~/mine-claude-data/web] [--my-user-id user_XXXX]
-      [--claudian-dir ~/vault/.claudian] [--notes "~/notes/*.md" ...] [--no-history] [--dk-mode]
-      [--sources transcript,queued,web,history,note] [--since 2026-01-01] [--until 2026-12-31]
+      [--strip-tag NAME ...] [--no-history]
+      [--sources transcript,queued,web,history] [--since YYYY-MM-DD] [--until YYYY-MM-DD]
       [--include REGEX] [--exclude REGEX]
 
+--strip-tag removes <NAME ...>...</NAME> blocks that your own hooks inject into prompts (repeatable).
 --include / --exclude match the project, title and message text (case-insensitive).
-Rows with no date (notes) are kept by --since / --until.
 """
 import argparse, datetime, glob, html, json, os, re
 from collections import Counter
@@ -29,10 +27,8 @@ ap.add_argument("out")
 ap.add_argument("--claude-dir", default="~/.claude")
 ap.add_argument("--web-dir", default="~/mine-claude-data/web")
 ap.add_argument("--my-user-id", default=os.environ.get("MY_USER_ID", ""), help="keep only your posts in web project threads")
-ap.add_argument("--claudian-dir", action="append", default=[], help="a vault's .claudian folder, for titles")
-ap.add_argument("--notes", action="append", default=[], help="glob of notes files to include")
+ap.add_argument("--strip-tag", action="append", default=[], help="tag name your hooks inject into prompts, to remove")
 ap.add_argument("--no-history", action="store_true")
-ap.add_argument("--dk-mode", action="store_true", help="also read dk-mode plugin corrections (only if you use dk-mode)")
 ap.add_argument("--sources", default="", help="comma list of sources to keep (default: all)")
 ap.add_argument("--since", default="", help="keep rows on or after this date, YYYY-MM-DD")
 ap.add_argument("--until", default="", help="keep rows on or before this date, YYYY-MM-DD")
@@ -41,7 +37,9 @@ ap.add_argument("--exclude", default="", help="drop rows whose project, title or
 a = ap.parse_args()
 
 CD = Path(os.path.expanduser(a.claude_dir))
-TAG_BLOCKS = re.compile(r"<(system-reminder|ide_opened_file|ide_selection|user-prompt-submit-hook|session_context|register_reminder|self-steering)[^>]*>.*?</\1>", re.S)
+# Blocks Claude Code itself injects into user turns, plus any the user names.
+tags = ["system-reminder", "ide_opened_file", "ide_selection", "user-prompt-submit-hook"] + [re.escape(t) for t in a.strip_tag]
+TAG_BLOCKS = re.compile(r"<(" + "|".join(tags) + r")\b[^>]*>.*?</\1>", re.S)
 PASTE = re.compile(r"<pasted_content[^>]*>(.*?)</pasted_content>", re.S)
 MSG = re.compile(r"<message\b([^>]*)>(.*?)</message>", re.S)
 ATTR = re.compile(r'([\w-]+)="([^"]*)"')
@@ -64,7 +62,7 @@ def text_of(e):
 def clean_user(t):
     t = TAG_BLOCKS.sub("", t or "")
     t = PASTE.sub(lambda m: "\n[PASTED]\n" + m.group(1).strip() + "\n[/PASTED]\n", t).strip()
-    if "<message" in t:  # web project wake: keep posts (yours only if --my-user-id)
+    if "<message" in t:  # web project thread: keep posts (yours only if --my-user-id)
         bodies = [html.unescape(b).strip() for at, b in MSG.findall(t)
                   if not a.my_user_id or dict(ATTR.findall(at)).get("author-id") == a.my_user_id]
         t = "\n\n".join(b for b in bodies if b)
@@ -73,14 +71,8 @@ def clean_user(t):
     return t
 
 
-# Titles
+# Titles: transcript title entries, the desktop app's session files (macOS), the web index
 titles = {}
-for d in a.claudian_dir:
-    for f in glob.glob(os.path.join(os.path.expanduser(d), "sessions/**/*.json"), recursive=True):
-        try:
-            j = json.load(open(f)); titles[j["sessionId"]] = j.get("title") or ""
-        except Exception:
-            pass
 for f in glob.glob(os.path.expanduser("~/Library/Application Support/Claude/claude-code-sessions/*/*/local_*.json")):
     try:
         j = json.load(open(f))
@@ -134,19 +126,22 @@ def add_session(sid, entries, project, src_main):
                      "claude_before": ctx(i, -1), "claude_after": ctx(i, 1)})
 
 
+def load_jsonl(path):
+    out = []
+    for line in open(path, errors="ignore"):
+        try:
+            out.append(json.loads(line))
+        except Exception:
+            pass
+    return out
+
+
 # 1. Local transcripts
 n_local = 0
 for f in sorted(glob.glob(str(CD / "projects/*/*.jsonl"))):
-    entries = []
-    for line in open(f, errors="ignore"):
-        try:
-            entries.append(json.loads(line))
-        except Exception:
-            pass
-    proj = Path(f).parent.name
-    add_session(Path(f).stem, entries, proj, "transcript"); n_local += 1
+    add_session(Path(f).stem, load_jsonl(f), Path(f).parent.name, "transcript"); n_local += 1
 
-# 2. Web sessions (downloaded with scripts/dump_web_*.py)
+# 2. Web sessions
 n_web = 0
 for f in sorted(web_dir.rglob("*.json")) if web_dir.exists() else []:
     if not f.name.startswith(("session_", "cse_")):
@@ -155,16 +150,11 @@ for f in sorted(web_dir.rglob("*.json")) if web_dir.exists() else []:
         data = json.loads(f.read_text())
     except Exception:
         continue
-    proj = f.parent.name if f.parent != web_dir else "web"
-    add_session(f.stem, data.get("loglines", []), proj, "web"); n_web += 1
+    add_session(f.stem, data.get("loglines", []), f.parent.name if f.parent != web_dir else "web", "web"); n_web += 1
 
 # 3. history.jsonl: prompts from sessions with no transcript left
 if not a.no_history and (CD / "history.jsonl").exists():
-    for line in open(CD / "history.jsonl", errors="ignore"):
-        try:
-            e = json.loads(line)
-        except Exception:
-            continue
+    for e in load_jsonl(CD / "history.jsonl"):
         sid = e.get("sessionId") or ""
         if sid in have_sessions:
             continue
@@ -180,36 +170,12 @@ if not a.no_history and (CD / "history.jsonl").exists():
         rows.append({"source": "history", "session": sid, "project": e.get("project", ""), "title": "",
                      "ts": ts, "uuid": "", "text": t, "claude_before": "", "claude_after": ""})
 
-# 4. Optional: dk-mode corrections from sessions whose transcript is gone (--dk-mode)
-if a.dk_mode:
-    short = {s[:8] for s in have_sessions}
-    have_text = {re.sub(r"\s+", " ", r["text"]).strip() for r in rows}  # often repeats a history.jsonl prompt
-    for f in glob.glob(str(CD / "plugins/data/dk-mode*/memory/dk.jsonl")):
-        for line in open(f, errors="ignore"):
-            try:
-                d = json.loads(line)
-            except Exception:
-                continue
-            t, s = (d.get("user_verbatim") or "").strip(), str(d.get("session", ""))
-            nt = re.sub(r"\s+", " ", t).strip()
-            if not t or s[:8] in short or t.startswith(SKIP_START) or (s, t) in seen or nt in have_text:
-                continue
-            seen.add((s, t)); have_text.add(nt)
-            rows.append({"source": "dk", "session": s, "project": d.get("cwd", ""), "title": "dk-mode correction (transcript lost)",
-                         "ts": d.get("ts", ""), "uuid": d.get("uuid", ""), "text": t,
-                         "claude_before": d.get("assistant_context") or "", "claude_after": ""})
-
-# 5. Notes
-for g in a.notes:
-    for f in sorted(glob.glob(os.path.expanduser(g), recursive=True)):
-        t = Path(f).read_text(errors="ignore").strip()
-        if t:
-            rows.append({"source": "note", "session": "", "project": "", "title": f, "ts": "", "uuid": "",
-                         "text": t, "claude_before": "", "claude_after": ""})
-
+# Filters
 keep_src = {s.strip() for s in a.sources.split(",") if s.strip()}
 inc = re.compile(a.include, re.I) if a.include else None
 exc = re.compile(a.exclude, re.I) if a.exclude else None
+
+
 def keep(r):
     if keep_src and r["source"] not in keep_src:
         return False
@@ -219,16 +185,11 @@ def keep(r):
     if d and a.until and d > a.until:
         return False
     hay = " ".join(str(r.get(k) or "") for k in ("project", "title", "text"))
-    if inc and not inc.search(hay):
-        return False
-    if exc and exc.search(hay):
-        return False
-    return True
+    return not (inc and not inc.search(hay)) and not (exc and exc.search(hay))
+
+
 before = len(rows)
-rows = [r for r in rows if keep(r)]
-if len(rows) != before:
-    print(f"filters kept {len(rows)} of {before} rows")
-rows.sort(key=lambda r: (r["source"] == "note", r["ts"] or ""))
+rows = sorted((r for r in rows if keep(r)), key=lambda r: r["ts"] or "")
 Path(a.out).parent.mkdir(parents=True, exist_ok=True)
 with open(a.out, "w") as o:
     for k, r in enumerate(rows):
@@ -236,5 +197,7 @@ with open(a.out, "w") as o:
         o.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 print(f"{n_local} local transcripts, {n_web} web sessions")
+if len(rows) != before:
+    print(f"filters kept {len(rows)} of {before} rows")
 print(len(rows), "rows", dict(Counter(r["source"] for r in rows)))
 print("months:", sorted(Counter((r["ts"] or "none")[:7] for r in rows).items()))

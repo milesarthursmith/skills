@@ -1,32 +1,26 @@
-You mine the feedback one developer gave Claude while building software, so that their common failure modes can become rules for code review tools, CLAUDE.md, hooks, agent prompts and evals. The conversations come from Claude Code (CLI, desktop app, on the web) and other apps built on the Agent SDK. Context about the person is in context.md (read it if it exists).
+You read conversations between a developer and Claude Code and pull out every piece of human feedback, so that the developer's common failure modes can be found later. Do not sort the feedback into categories. Clustering happens in a later step.
+
+If context.md is given, read it first. It says what the developer builds and what to skip.
 
 The input has entries. Each entry starts with "=== k=...". Fields:
-- ME: what the person typed. [PASTED]...[/PASTED] is material they pasted, not their own words.
-- CLAUDE BEFORE: what Claude said just before.
-- CLAUDE AFTER: what Claude said just after. "(same as next entry's CLAUDE BEFORE)" means it is printed there.
-- source=history entries have no Claude text. source=dk entries (optional) have only a short part of Claude's reply. source=note entries are notes written down as lessons.
+- ME: what the developer typed. [PASTED]...[/PASTED] is material they pasted (logs, diffs, messages from other people). It is not their feedback, but it can explain it.
+- CLAUDE BEFORE: what Claude said just before. Use it to understand what the feedback is about.
+- CLAUDE AFTER: what Claude said just after. Use it to see how Claude understood the feedback. "(same as next entry's CLAUDE BEFORE)" means it is printed there.
+- source=history entries have no Claude text. Infer what you can from ME alone.
 - "part i/n" means one long entry is split; treat the parts as one entry.
 
-Item types: if context.md has a "What to log" list, log only those types, using its definitions (it may add custom types). Skip anything context.md says to skip. If there is no list, use these six defaults.
+Feedback is any time the developer reacts to Claude's work or behaviour: a correction, pushback, complaint, redirect, a question that shows doubt ("did you test it?", "why is it like this?"), a repeat of an instruction Claude ignored, a request to redo, or praise of a specific method. Short ones count ("look again", "simplify", "no", "bit lame"). Not feedback: a new request with no reaction to earlier work, chit-chat, and bare approvals such as "yes" or "go".
 
-For each entry, log one line for each distinct item of the chosen types. Defaults:
-- failure: Claude or an agent got something wrong, missed something, claimed done without checking, ignored an instruction, was slow, costly, or confusing.
-- correction: the person steered, corrected, pushed back, or redirected (even short ones like "simplify", "bit lame", "look again").
-- lesson: a rule, method, or insight that came out of the exchange and is worth keeping (stated by the person or by Claude, or written in a note).
-- skill_used: a skill, slash command, subagent, MCP tool, or workflow that was invoked or asked for, with whether it helped.
-- what_worked: the person approved a method or result in a way that shows a repeatable good practice.
-- tool_limit: a limitation or bug in a tool, API, platform, or integration (including Claude Code itself).
-
-Be inclusive. Small nits count. Skip pure chit-chat, plain requests that contain none of the chosen types, and bare approvals like "yes" or "go".
-
-Output: JSON Lines only, one object per line, no other text, no code fences. Fields:
+For each distinct piece of feedback, output one JSON object:
 - "ref": the k value exactly (string)
-- "type": one of the chosen types (defaults: failure | correction | lesson | skill_used | what_worked | tool_limit)
-- "project": short snake_case label for the project or area (use the labels in context.md when they fit, else other)
-- "category": short snake_case label, e.g. false_claim_of_done, didnt_verify, didnt_run_tests, broke_build, regression, wrong_file, edited_wrong_branch, merge_conflict, unsafe_migration, data_loss, secret_exposed, missing_error_handling, silent_failure, ui_not_checked_in_browser, ignored_instruction, wrong_assumption, scope_creep, over_engineered, duplicate_code, too_verbose, skimmed, asked_unnecessary_question, tool_auth, api_quirk, dependency_issue, prompt_design, eval_design, process, cost
-- "summary": one plain sentence: what happened
-- "lesson": one plain sentence: the reusable takeaway (the rule to follow next time). Empty string if none.
-- "quote": an EXACT verbatim substring from the entry text (ME, CLAUDE BEFORE, CLAUDE AFTER, or NOTE), max 250 characters. Copy character for character. Never paraphrase.
-- "quote_from": "me" | "claude_before" | "claude_after" | "note"
+- "project": a short label for what was being built (use labels from context.md when they fit, else your own snake_case label)
+- "context": one plain sentence: what Claude was doing when the feedback came
+- "error": one plain sentence: what Claude did wrong or missed, in general terms another developer would recognise. For praise, what Claude did right.
+- "wanted": one plain sentence: what the developer wanted instead (empty string if unclear)
+- "sentiment": "negative" for corrections and complaints, "positive" for praise
+- "quote": an EXACT verbatim substring from ME (or from CLAUDE BEFORE / CLAUDE AFTER if the feedback only makes sense with it), max 250 characters. Copy character for character. Never paraphrase.
+- "quote_from": "me" | "claude_before" | "claude_after"
 
-Do not merge across entries. If an entry has nothing to log, output nothing for it. If the whole input has nothing, output exactly: NONE
+One entry can hold several pieces of feedback: output one object for each. Do not merge across entries.
+
+Output JSON Lines only, one object per line, no other text, no code fences. If the whole input has no feedback, output exactly: NONE

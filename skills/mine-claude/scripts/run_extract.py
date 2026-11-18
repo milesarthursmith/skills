@@ -1,7 +1,7 @@
 """Run the Haiku extract on every batch with the headless claude CLI. Skips batches that already have output.
 
 Usage: python3 -I scripts/run_extract.py data/batches prompts/extract.md [--context context.md] [--workers 6] [--only b000,b001]
-Writes BATCHDIR/out_bXXX.jsonl and BATCHDIR/err_bXXX.txt on failure.
+Writes data/batches/out_bXXX.jsonl and BATCHDIR/err_bXXX.txt on failure.
 """
 import argparse, os, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor

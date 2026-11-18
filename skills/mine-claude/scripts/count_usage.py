@@ -1,15 +1,17 @@
 """Count skills, slash commands, subagents, MCP servers and tool errors by month. No model needed.
 
-Usage: python3 -I count_usage.py OUT.csv
+Usage: python3 -I scripts/count_usage.py usage_by_month.csv [--claude-dir ~/.claude]
 Rows: month, kind, name, count. kind = slash_command | skill_tool | subagent | mcp_server | tool_call | tool_error
 """
-import csv, datetime, glob, json, re, sys
+import argparse, csv, datetime, glob, json, os, re
 from collections import Counter
 from pathlib import Path
 
-HOME = Path.home()
+ap = argparse.ArgumentParser(); ap.add_argument("out"); ap.add_argument("--claude-dir", default="~/.claude")
+args = ap.parse_args()
+CD = Path(os.path.expanduser(args.claude_dir))
 c = Counter()
-for f in glob.glob(str(HOME / ".claude/projects/**/*.jsonl"), recursive=True):
+for f in glob.glob(str(CD / "projects/**/*.jsonl"), recursive=True):
     sub = "/subagents/" in f
     names = {}
     for line in open(f, errors="ignore"):
@@ -41,7 +43,7 @@ for f in glob.glob(str(HOME / ".claude/projects/**/*.jsonl"), recursive=True):
                 elif b.get("type") == "tool_result" and b.get("is_error"):
                     c[(mo, "tool_error", names.get(b.get("tool_use_id"), "?"))] += 1
 
-for line in open(HOME / ".claude/history.jsonl", errors="ignore"):
+for line in open(CD / "history.jsonl", errors="ignore") if (CD / "history.jsonl").exists() else []:
     try:
         e = json.loads(line)
     except Exception:
@@ -51,7 +53,7 @@ for line in open(HOME / ".claude/history.jsonl", errors="ignore"):
         mo = datetime.datetime.utcfromtimestamp(e["timestamp"] / 1000).strftime("%Y-%m") if e.get("timestamp") else "none"
         c[(mo, "slash_command_history", d.split()[0][1:])] += 1
 
-with open(sys.argv[1], "w", newline="") as o:
+with open(args.out, "w", newline="") as o:
     w = csv.writer(o); w.writerow(["month", "kind", "name", "count"])
     for (mo, kind, name), n in sorted(c.items()):
         w.writerow([mo, kind, name, n])
