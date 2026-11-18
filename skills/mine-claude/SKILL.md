@@ -1,11 +1,11 @@
 ---
 name: mine-claude
-description: Mine the human feedback in your Claude conversations for common failure modes, then turn them into rules for agent prompts, code review tools (such as CodeRabbit), CLAUDE.md, hooks or evals. Reads local Claude Code transcripts (CLI, desktop app, Agent SDK apps), Claude Code on the web sessions and history.jsonl. Logs every failure and correction with an exact quote and checks each quote against the source. Use when the user says "mine my Claude conversations", "find my common failure modes", "failure log", "turn my corrections into rules", or wants review rules or prompt guardrails built from real feedback.
+description: Mine the human feedback in your Claude Code conversations for the failure modes that repeat when building software, then turn them into rules for code review tools (such as CodeRabbit), CLAUDE.md, hooks, agent prompts or evals. Reads local Claude Code transcripts (CLI, desktop app, Agent SDK apps), Claude Code on the web sessions and history.jsonl. Logs every failure and correction with an exact quote and checks each quote against the source. Use when the user says "mine my Claude conversations", "find my common failure modes", "failure log", "turn my corrections into rules", or wants review rules or prompt guardrails built from real feedback.
 ---
 
 # mine-claude
 
-Finds the places where a person corrected Claude, pushed back or had to redo work, and turns them into one log, with a row per item and an exact quote on each row. Grouped, the log shows the failure modes that repeat. Those become rules for agent prompts, review tools and evals. A script checks every quote against the source text. The user chooses what to log, which sources and dates to read, and what to do with the log afterwards. The core output is the log. A failure-mode catalogue and rules for a target are optional extras.
+For developers who build software with Claude Code. Finds the places where you corrected Claude, pushed back or had to redo work, and turns them into one log, with a row per item and an exact quote on each row. Grouped, the log shows the failure modes that repeat. Those become rules for code review, CLAUDE.md, hooks, agent prompts and evals. A script checks every quote against the source text. The user chooses what to log, which sources and dates to read, and what to do with the log afterwards. The core output is the log. A failure-mode catalogue and rules for a target are optional extras.
 
 `SKILL` below means this skill's folder. `DATA` means `~/mine-claude-data` unless the user names another place. Keep `DATA` out of git and cloud sync: transcripts hold anything pasted into chats, keys included. Never print or copy a credential you see in a transcript.
 
@@ -21,6 +21,8 @@ Finds the places where a person corrected Claude, pushed back or had to redo wor
 
 It does not read claude.ai chats, screenshots or subagent transcripts. Nothing is truncated.
 
+Optional source: if the user runs the dk-mode plugin, `--dk-mode` also reads its saved corrections (`~/.claude/plugins/data/dk-mode*/memory/dk.jsonl`). These recover feedback from sessions whose transcript is gone. Leave it off for everyone else.
+
 ## Steps
 
 **0. Check retention.** Claude Code deletes local transcripts after 30 days unless `cleanupPeriodDays` is set in `~/.claude/settings.json`. Read the file. If the setting is missing, tell the user what is at risk and offer to set it to 3650. Do not change the file without a yes.
@@ -30,7 +32,7 @@ It does not read claude.ai chats, screenshots or subagent transcripts. Nothing i
 - Which sources (all available).
 - Date range (all time).
 - Projects to include or skip (all).
-- What they want at the end (the log only; or a failure-mode catalogue; or rules for one target: an agent system prompt, a code review config such as `.coderabbit.yaml`, CLAUDE.md, a hook, or eval cases).
+- What they want at the end (the log only; or a failure-mode catalogue; or rules for one target: a code review config such as `.coderabbit.yaml`, CLAUDE.md, a hook, a coding agent's system prompt, or eval cases).
 
 Write the answers into `DATA/context.md`, starting from `SKILL/context.example.md`. Add one line on what they work on and the project labels, from the conversation or memory if you can.
 
@@ -109,10 +111,10 @@ Max about 1,200 words. Return the report as text.
 **7. Write the output they asked for (optional).**
 
 Rules for a target: from the themes, draft each repeated failure mode as one rule in the target's format, with its item count and one quote as evidence:
-- Agent system prompt: a short "Known failure modes" block: what it looks like, what to do instead.
-- Code review tool: review instructions by file path (for CodeRabbit, `reviews.path_instructions` in `.coderabbit.yaml`) for failures that show up in code.
-- CLAUDE.md or memory: one line per rule.
-- Hook: a check a script can run (for example, block writes to /tmp).
+- Code review tool: review instructions by file path (for CodeRabbit, `reviews.path_instructions` in `.coderabbit.yaml`) for failures that show up in a diff, such as a missing test, a migration with no rollback, or an unchecked write.
+- CLAUDE.md: one line per rule, for failures in how Claude works (claims done without running tests, edits the wrong branch).
+- Hook: a check a script can run before or after a tool call (for example, block `git push` to main, block writes outside the repo).
+- Agent system prompt: a short "Known failure modes" block for coding agents and review bots: what it looks like, what to do instead.
 - Evals: one test case per failure mode, built from the quoted exchange.
 Show the drafts to the user. Change no file without a yes.
 

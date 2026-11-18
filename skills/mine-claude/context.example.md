@@ -1,6 +1,6 @@
-Who I am: (one or two lines about your work and side projects, so the extract can label projects)
+Who I am: (one or two lines, for example: "Full-stack developer. Next.js app, Postgres, a Python data pipeline, and Claude Code agents.")
 
-Project labels to use: (comma list, for example: client_app, data_pipeline, internal_tools, side_project, writing, claude_code, other)
+Project labels to use: (comma list, for example: web_app, api, data_pipeline, infra_ci, agents, tooling, claude_code, other)
 
 What to log: (keep the types you want, delete the rest, or add your own with a one-line definition)
 - failure: Claude or an agent got something wrong, missed something, claimed done without checking, ignored an instruction.
