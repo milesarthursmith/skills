@@ -1,10 +1,10 @@
-"""Split messages.jsonl into batches of whole conversations.
+"""Write one file per conversation, so each model call reads exactly one conversation.
 
 The unit is a conversation, not a message. build_messages.py keeps each conversation's rows together and
-in order. A batch holds one or more whole conversations. Each entry shows Claude's reply before, the tool
+in order. Each file holds one whole conversation and nothing else. Each entry shows Claude's reply before, the tool
 calls Claude made, your message, and Claude's reply after, so the batch reads like the conversation.
 
-A conversation larger than --size is split into parts. Each part after the first starts with an overview
+A conversation larger than --size is split into parts, one file each. Each part after the first starts with an overview
 of the conversation so far (context only, not logged again):
   - the title and your opening message
   - an outline: one line per earlier message of yours (first 200 characters, last 100 messages)
@@ -174,11 +174,7 @@ def write(text):
     (out / f"b{bi:03d}.txt").write_text(text); bi += 1; total += len(text)
 
 
-for u in units:
-    if buf and len(buf) + len(u) > a.size:
-        write(buf); buf = ""
-    buf += u
-if buf:
-    write(buf)
+for u in units:  # one conversation (or one part of a long one) per file
+    write(u)
 split = sum(1 for c in convs if len(render(c, c)) > a.size)
-print(f"{bi} batches in {out}, {total} chars; {len(convs)} conversations, {split} split into parts")
+print(f"{bi} files in {out} ({len(convs)} conversations, {split} split into parts), {total} chars")
