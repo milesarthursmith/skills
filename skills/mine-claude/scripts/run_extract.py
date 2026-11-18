@@ -9,7 +9,7 @@ from pathlib import Path
 
 ap = argparse.ArgumentParser()
 ap.add_argument("batchdir"); ap.add_argument("prompt"); ap.add_argument("--workers", type=int, default=6)
-ap.add_argument("--only", default=""); ap.add_argument("--context", default=os.path.expanduser("~/mine-claude-data/context.md")); ap.add_argument("--extra-args", default="")
+ap.add_argument("--only", default=""); ap.add_argument("--model", default="sonnet"); ap.add_argument("--context", default=os.path.expanduser("~/mine-claude-data/context.md")); ap.add_argument("--extra-args", default="")
 a = ap.parse_args()
 d = Path(a.batchdir)
 instr = Path(a.prompt).read_text()
@@ -20,7 +20,7 @@ todo = [f for f in sorted(d.glob("b*.txt")) if (not only or f.stem in only)
         and not ((d / f"out_{f.stem}.jsonl").exists() and (d / f"out_{f.stem}.jsonl").stat().st_size > 0)]
 print(len(todo), "batches to run", flush=True)
 
-CMD = ["claude", "-p", "--model", "haiku", "--no-session-persistence", "--tools", "",
+CMD = ["claude", "-p", "--model", a.model, "--no-session-persistence", "--tools", "",
        "--setting-sources", "", "--strict-mcp-config", "--output-format", "text"] + a.extra_args.split()
 
 

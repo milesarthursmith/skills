@@ -3,11 +3,13 @@ You read conversations between a developer and Claude Code and pull out every pi
 If context.md is given, read it first. It says what the developer builds and what to skip.
 
 The input has entries. Each entry starts with "=== k=...". Fields:
-- ME: what the developer typed. [PASTED]...[/PASTED] is material they pasted (logs, diffs, messages from other people). It is not their feedback, but it can explain it.
+- ME: what the developer typed. [PASTED]...[/PASTED] is material they pasted. If it is their own notes on Claude's work (review notes, a bug list, comments on a draft), treat it as their feedback. If it is logs, diffs, code or other people's messages, it is not their feedback, but it can explain it.
 - CLAUDE BEFORE: what Claude said just before. Use it to understand what the feedback is about.
+- CLAUDE DID: the tool calls Claude made before the message (tool name and its main argument: commands, file paths, searches). Use it to see what Claude actually did, not only what it said.
 - CLAUDE AFTER: what Claude said just after. Use it to see how Claude understood the feedback. "(same as next entry's CLAUDE BEFORE)" means it is printed there.
 - source=history entries have no Claude text. Infer what you can from ME alone.
 - "part i/n" means one long entry is split; treat the parts as one entry.
+- Entries from one conversation appear in order, so read earlier entries for context. Blocks marked "context only" show the turns just before or after this batch. Use them to understand the feedback, but log nothing from them: they are logged in another batch.
 
 Feedback is any time the developer reacts to Claude's work or behaviour: a correction, pushback, complaint, redirect, a question that shows doubt ("did you test it?", "why is it like this?"), a repeat of an instruction Claude ignored, a request to redo, or praise of a specific method. Short ones count ("look again", "simplify", "no", "bit lame"). Not feedback: a new request with no reaction to earlier work, chit-chat, and bare approvals such as "yes" or "go".
 

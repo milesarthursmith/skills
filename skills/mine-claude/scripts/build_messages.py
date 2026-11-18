@@ -1,4 +1,6 @@
-"""Build one JSONL of every message you typed to Claude Code, full text, with Claude's reply before and after.
+"""Build one JSONL of every message you typed to Claude Code, full text, with Claude's reply before and after
+and the tool calls Claude made in between (tool name and its main argument, first 200 characters).
+Rows are grouped by conversation, in order, so batches read like the conversation.
 
 Sources (column "source"):
   transcript  local Claude Code transcripts in <claude-dir>/projects (CLI, desktop app, Agent SDK apps)
@@ -41,6 +43,7 @@ CD = Path(os.path.expanduser(a.claude_dir))
 tags = ["system-reminder", "ide_opened_file", "ide_selection", "user-prompt-submit-hook"] + [re.escape(t) for t in a.strip_tag]
 TAG_BLOCKS = re.compile(r"<(" + "|".join(tags) + r")\b[^>]*>.*?</\1>", re.S)
 PASTE = re.compile(r"<pasted_content[^>]*>(.*?)</pasted_content>", re.S)
+PASTE_OPEN = re.compile(r"<pasted_content[^>]*>")
 MSG = re.compile(r"<message\b([^>]*)>(.*?)</message>", re.S)
 ATTR = re.compile(r'([\w-]+)="([^"]*)"')
 SKIP_START = ("<task-notification", "<local-command", "<bash-", "<command-message", "<command-name", "Caveat:",
@@ -61,7 +64,8 @@ def text_of(e):
 
 def clean_user(t):
     t = TAG_BLOCKS.sub("", t or "")
-    t = PASTE.sub(lambda m: "\n[PASTED]\n" + m.group(1).strip() + "\n[/PASTED]\n", t).strip()
+    t = PASTE.sub(lambda m: "\n[PASTED]\n" + m.group(1).strip() + "\n[/PASTED]\n", t)
+    t = PASTE_OPEN.sub("\n[PASTED]\n", t).replace("</pasted_content>", "\n[/PASTED]\n").strip()  # unclosed tags
     if "<message" in t:  # web project thread: keep posts (yours only if --my-user-id)
         bodies = [html.unescape(b).strip() for at, b in MSG.findall(t)
                   if not a.my_user_id or dict(ATTR.findall(at)).get("author-id") == a.my_user_id]
@@ -99,6 +103,23 @@ def add_session(sid, entries, project, src_main):
     def is_user(e):
         return e.get("type") == "user" and clean_user(text_of(e))
 
+    def actions(i):
+        """Tool calls Claude made between the previous user message and entry i, oldest first."""
+        out, j = [], i - 1
+        while j >= 0 and not is_user(entries[j]):
+            e = entries[j]
+            if e.get("type") == "assistant" and isinstance((e.get("message") or {}).get("content"), list):
+                calls = []
+                for b in e["message"]["content"]:
+                    if isinstance(b, dict) and b.get("type") == "tool_use":
+                        inp = b.get("input") or {}
+                        arg = next((str(inp[k]) for k in ("command", "file_path", "path", "pattern", "url", "query",
+                                    "description", "prompt", "skill") if inp.get(k)), "")
+                        calls.append(f"{b.get('name', '?')}: {' '.join(arg.split())[:200]}")
+                out = calls + out
+            j -= 1
+        return "\n".join(out)
+
     def ctx(i, step):
         parts, j = [], i + step
         while 0 <= j < len(entries):
@@ -123,7 +144,7 @@ def add_session(sid, entries, project, src_main):
         seen.add((sid, t))
         rows.append({"source": src, "session": sid, "project": project, "title": titles.get(sid, ""),
                      "ts": e.get("timestamp") or "", "uuid": e.get("uuid") or "", "text": t,
-                     "claude_before": ctx(i, -1), "claude_after": ctx(i, 1)})
+                     "claude_before": ctx(i, -1), "claude_actions": actions(i), "claude_after": ctx(i, 1)})
 
 
 def load_jsonl(path):
@@ -168,7 +189,7 @@ if not a.no_history and (CD / "history.jsonl").exists():
         seen.add((sid, t))
         ts = datetime.datetime.utcfromtimestamp(e["timestamp"] / 1000).isoformat() + "Z" if e.get("timestamp") else ""
         rows.append({"source": "history", "session": sid, "project": e.get("project", ""), "title": "",
-                     "ts": ts, "uuid": "", "text": t, "claude_before": "", "claude_after": ""})
+                     "ts": ts, "uuid": "", "text": t, "claude_before": "", "claude_actions": "", "claude_after": ""})
 
 # Filters
 keep_src = {s.strip() for s in a.sources.split(",") if s.strip()}
@@ -189,7 +210,12 @@ def keep(r):
 
 
 before = len(rows)
-rows = sorted((r for r in rows if keep(r)), key=lambda r: r["ts"] or "")
+rows = [r for r in rows if keep(r)]
+# Keep each conversation together and in order; conversations ordered by their first message.
+start = {}
+for r in rows:
+    start[r["session"]] = min(start.get(r["session"], "~"), r["ts"] or "~")
+rows.sort(key=lambda r: (start[r["session"]], r["session"], r["ts"] or ""))
 Path(a.out).parent.mkdir(parents=True, exist_ok=True)
 with open(a.out, "w") as o:
     for k, r in enumerate(rows):

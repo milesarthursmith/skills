@@ -8,9 +8,9 @@ description: Mine the human feedback in your Claude Code conversations and clust
 Every time you correct Claude Code, you write down a failure mode. This skill collects those corrections from your transcripts, works out what Claude was doing and what went wrong, and clusters them so the repeat failures stand out. Each cluster comes with a rule you can put where it will stop the failure: a review tool, CLAUDE.md, a hook, an agent prompt or an eval.
 
 Three stages:
-1. **Collect.** Scripts read every message you typed, with Claude's reply before and after. Nothing is cut.
-2. **Understand.** Haiku reads each exchange. For every piece of feedback it writes the context, the error, what you wanted, and an exact quote. A script checks each quote against the source.
-3. **Cluster.** Sonnet groups the feedback into failure modes found in the data, in two passes (per chunk, then merged). A script assigns every row to a cluster and counts them.
+1. **Collect.** Scripts read every message you typed, with Claude's reply before and after and the tool calls Claude made in between. Conversations stay together and in order. Where a batch starts or ends mid-conversation, it also gets the turns just before and after. Nothing is cut.
+2. **Understand.** Sonnet reads each conversation in order, with Claude's tool calls. For every piece of feedback it writes the context, the error, what you wanted, and an exact quote. A script checks each quote against the source.
+3. **Cluster.** Sonnet groups the feedback into failure modes found in the data, per chunk. Opus merges the chunk clusters into one set. A script assigns every row to a cluster and counts them.
 
 `SKILL` means this skill's folder. `DATA` means `~/mine-claude-data` unless the user names another place. Keep `DATA` out of git and cloud sync: transcripts hold anything pasted into chats, keys included. Never print or copy a credential you see in a transcript.
 
@@ -52,20 +52,20 @@ The download scripts skip files already saved. One 403 is normal. The last comma
 ```bash
 python3 -I SKILL/scripts/build_messages.py DATA/messages.jsonl [--my-user-id user_XXXX] [--strip-tag NAME ...] \
   [--sources transcript,queued,web,history] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--include REGEX] [--exclude REGEX]
-python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches
+python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches [--earlier 3] [--later 2]
 ```
 
 Show the row counts by source and month. Months with only `history` rows mean the transcripts were deleted: say so.
 
-**4. Understand (Haiku).** Tell the user the batch count first. As a guide, 5,000 messages make about 125 batches of 80 KB.
+**4. Understand (Sonnet by default).** Tell the user the batch count and the model first. As a guide, 5,000 messages make about 130 batches of 80 KB. Sonnet reads intent and context better than Haiku; Haiku costs less and suits a quick first pass. Opus suits small, high-stakes runs.
 
-Route A, if `claude -p --model haiku "say ok"` works:
+Route A, if `claude -p --model sonnet "say ok"` works:
 
 ```bash
-python3 -I SKILL/scripts/run_extract.py DATA/batches SKILL/prompts/extract.md --context DATA/context.md --workers 6
+python3 -I SKILL/scripts/run_extract.py DATA/batches SKILL/prompts/extract.md --context DATA/context.md --model sonnet --workers 6
 ```
 
-Route B, otherwise: `general-purpose` subagents with `model: haiku`, 3 batches each, up to 10 at a time, starting a new one as each finishes. Prompt:
+Route B, otherwise: `general-purpose` subagents with `model: sonnet` (or the model chosen), 3 batches each, up to 10 at a time, starting a new one as each finishes. Prompt:
 
 ```
 Read SKILL/prompts/extract.md and DATA/context.md (absolute paths). Follow the instructions
@@ -78,7 +78,7 @@ Lines under a line "FILE out_bXXX.jsonl". Quotes must be exact copies of input t
 copy any credentials. Otherwise reply only with line counts.
 ```
 
-If an agent replies with JSON Lines instead of writing them, save them to the named file yourself.
+If subagents cannot write files in this environment, an agent replies with the JSON Lines under `FILE out_bXXX.jsonl` lines instead. Save the reply text to a file and run `python3 -I SKILL/scripts/save_reply.py reply.txt DATA/batches`.
 
 **5. Merge and check quotes.**
 
@@ -88,7 +88,7 @@ python3 -I SKILL/scripts/merge.py DATA/messages.jsonl DATA/batches DATA/feedback
 
 Rerun any batch listed as missing output. Below 95% verified quotes, inspect the worst batches before you go on.
 
-**6. Cluster (Sonnet, two passes).**
+**6. Cluster (Sonnet per chunk, then Opus to merge).**
 
 ```bash
 python3 -I SKILL/scripts/cluster_prep.py chunks DATA/feedback_log.jsonl DATA/clusters
@@ -107,7 +107,7 @@ Save each reply to `DATA/clusters/chunk_XX.json`. Then:
 python3 -I SKILL/scripts/cluster_prep.py pass2 DATA/clusters
 ```
 
-Pass 2: one `general-purpose` subagent with `model: sonnet`:
+Pass 2: one `general-purpose` subagent with `model: opus`:
 
 ```
 Read SKILL/prompts/cluster_pass2.md, then read all of DATA/clusters/pass2_input.txt.

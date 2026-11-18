@@ -36,11 +36,11 @@ for f in sorted(glob.glob(f"{bdir}/out_b*.jsonl")):
             "context": x.get("context", ""), "error": x.get("error", ""), "wanted": x.get("wanted", ""),
             "sentiment": x.get("sentiment", ""), "quote": q, "quote_from": found or x.get("quote_from", ""),
             "quote_verified": bool(found), "my_message": m["text"], "claude_before": m["claude_before"],
-            "claude_after": m["claude_after"], "ref": f"k={k}", "batch": f.rsplit("_", 1)[-1].split(".")[0],
+            "claude_after": m["claude_after"], "claude_actions": m.get("claude_actions", ""), "ref": f"k={k}", "batch": f.rsplit("_", 1)[-1].split(".")[0],
         })
 
 cols = ["log_id", "date", "source", "project", "title", "context", "error", "wanted", "sentiment", "quote",
-        "quote_from", "quote_verified", "my_message", "claude_before", "claude_after", "session", "ref", "batch"]
+        "quote_from", "quote_verified", "my_message", "claude_before", "claude_actions", "claude_after", "session", "ref", "batch"]
 rows.sort(key=lambda r: (r["date"] or "9999", r["ref"]))
 for i, r in enumerate(rows):
     r["log_id"] = i + 1
