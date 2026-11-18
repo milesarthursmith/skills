@@ -1,0 +1,169 @@
+---
+name: mine-claude
+description: Mine the human feedback in your Claude Code conversations and cluster it into the failure modes that keep coming back when you build software. Pulls every correction, pushback and complaint from your transcripts with its context and an exact quote, lets AI find the clusters (no preset categories), and turns them into rules for code review tools such as CodeRabbit, CLAUDE.md, hooks, coding-agent prompts or evals. Use when the user says "mine my Claude conversations", "find my common failure modes", "what does Claude keep getting wrong", "turn my corrections into rules", or wants review rules or guardrails built from real feedback.
+---
+
+# mine-claude
+
+Every time you correct Claude Code, you write down a failure mode. This skill collects those corrections from your transcripts, works out what Claude was doing and what went wrong, and clusters them so the repeat failures stand out. Each cluster comes with a rule you can put where it will stop the failure: a review tool, CLAUDE.md, a hook, an agent prompt or an eval.
+
+Three stages:
+1. **Collect.** Scripts read every message you typed, with Claude's replies and the tool calls Claude made in between. The unit is the whole conversation: each model call reads one conversation, in order, and nothing else. A conversation too long for one call is split into parts, and each later part starts with an overview: the title, the opening message, a one-line outline of every earlier message, and the last few exchanges. If a date or project filter cuts the start of a conversation, the call still sees how it started. Nothing in the messages is cut.
+2. **Understand.** Sonnet reads each conversation in order, with Claude's tool calls. For every piece of feedback it writes the context, the error, what you wanted, and an exact quote. A script checks each quote against the source.
+3. **Cluster.** Sonnet groups the feedback into failure modes found in the data, per chunk. Opus merges the chunk clusters into one set. A script assigns every row to a cluster and counts them.
+
+`SKILL` means this skill's folder. `DATA` means `~/mine-claude-data` unless the user names another place. Keep `DATA` out of git and cloud sync: transcripts hold anything pasted into chats, keys included. Never print or copy a credential you see in a transcript.
+
+## Sources
+
+| Source | Where | Claude's replies |
+|---|---|---|
+| Local transcripts | `~/.claude/projects/*/*.jsonl` (CLI, desktop app, Agent SDK apps) | Full |
+| Messages typed mid-turn | Same files | Full |
+| Claude Code on the web | Downloaded to `DATA/web` (step 2) | Full |
+| Prompts from deleted transcripts | `~/.claude/history.jsonl` | None |
+
+## Steps
+
+**0. Check retention.** Claude Code deletes local transcripts after 30 days unless `cleanupPeriodDays` is set in `~/.claude/settings.json`. Read the file. If the setting is missing, tell the user how much history is at risk and offer to set it to 3650. Change the file only after a yes.
+
+**1. Agree the scope.** `mkdir -p ~/mine-claude-data`. Ask in one message, offering the defaults in brackets, and skip anything the request already answers:
+- Sources (all available).
+- Date range (all time).
+- Projects or repos to include or skip (all).
+- Tags your own hooks inject into prompts, if any (none). Check a few recent prompts in a transcript for `<tag>` blocks that are not Claude Code's own.
+- What they want at the end (clusters; or clusters plus rules for one target, see step 7).
+
+Write `DATA/context.md` from `SKILL/context.example.md`: what they build, project labels if they have them, and what to skip.
+
+**2. Web sessions (only if they use Claude Code on the web; ask first).** This uses Anthropic endpoints that are not public, through a patched `claude-code-transcripts` (PR #93 fixes the published version's issue #77). It can stop working without notice. Needs `uv` and a Claude Code login. Run from `DATA`:
+
+```bash
+cd ~/mine-claude-data
+uv run --with "git+https://github.com/simonw/claude-code-transcripts@refs/pull/93/head" python SKILL/scripts/dump_web_sessions.py
+uv run --with "git+https://github.com/simonw/claude-code-transcripts@refs/pull/93/head" python SKILL/scripts/dump_web_projects.py
+python3 -I SKILL/scripts/find_my_user_id.py web/my_messages.jsonl
+```
+
+The download scripts skip files already saved. One 403 is normal. The last command lists posters in shared project threads: ask which `user_...` ID is the user's.
+
+**3. Collect.**
+
+```bash
+python3 -I SKILL/scripts/build_messages.py DATA/messages.jsonl [--my-user-id user_XXXX] [--strip-tag NAME ...] \
+  [--sources transcript,queued,web,history] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--include REGEX] [--exclude REGEX]
+python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches [--size 150000] [--earlier 3] [--later 2]
+```
+
+Show the row counts by source, account and month. CLI transcripts do not record the Claude account; the desktop app does. Name accounts with `--account-label UUIDPREFIX=name`, and use `--include`/`--exclude` on project paths to keep work and personal projects apart. Months with only `history` rows mean the transcripts were deleted: say so.
+
+**4. Understand (Sonnet by default).** Tell the user the batch count and the model first. There is one file per conversation (long ones split into parts of up to 150 KB). As a guide, 5,000 messages make about 450 files. Sonnet reads intent and context better than Haiku; Haiku costs less and suits a quick first pass. Opus suits small, high-stakes runs.
+
+Route A, if `claude -p --model sonnet "say ok"` works:
+
+```bash
+python3 -I SKILL/scripts/run_extract.py DATA/batches SKILL/prompts/extract.md --context DATA/context.md --model sonnet --workers 6
+```
+
+Route B, otherwise: `general-purpose` subagents with `model: sonnet` (or the model chosen), each given files that total up to about 400 KB (many small conversations, or one large one), up to 10 at a time, starting a new one as each finishes. Prompt:
+
+```
+Read SKILL/prompts/extract.md and DATA/context.md (absolute paths). Follow the instructions
+for each input file, one at a time. Read each input file completely in chunks of 300 lines
+with the Read tool's offset and limit; if a chunk is over the size limit use allow_large or
+smaller chunks. Do not skip any part. Do not use Bash.
+Inputs: DATA/batches/bXXX.txt -> DATA/batches/out_bXXX.jsonl (absolute paths).
+Write each output with the Write tool. If the Write tool refuses, reply with the full JSON
+Lines under a line "FILE out_bXXX.jsonl". Quotes must be exact copies of input text. Do not
+copy any credentials. Otherwise reply only with line counts.
+```
+
+If subagents cannot write files in this environment, an agent replies with the JSON Lines under `FILE out_bXXX.jsonl` lines instead. Save the reply text to a file and run `python3 -I SKILL/scripts/save_reply.py reply.txt DATA/batches`.
+
+**5. Merge and check quotes.**
+
+```bash
+python3 -I SKILL/scripts/merge.py DATA/messages.jsonl DATA/batches DATA/feedback_log
+```
+
+Rerun any batch listed as missing output. Below 95% verified quotes, inspect the worst batches before you go on.
+
+**6. Cluster (Sonnet per chunk, then Opus to merge).**
+
+```bash
+python3 -I SKILL/scripts/cluster_prep.py chunks DATA/feedback_log.jsonl DATA/clusters
+```
+
+Pass 1: one `general-purpose` subagent with `model: sonnet` per `DATA/clusters/chunk_XX.txt`, all at once:
+
+```
+Read SKILL/prompts/cluster_pass1.md, then read all of <chunk path> (offset/limit chunks;
+allow_large if needed). Follow the instructions. Return only the JSON object.
+```
+
+Save each reply to `DATA/clusters/chunk_XX.json`. Then:
+
+```bash
+python3 -I SKILL/scripts/cluster_prep.py pass2 DATA/clusters
+```
+
+Pass 2: one `general-purpose` subagent with `model: opus`:
+
+```
+Read SKILL/prompts/cluster_pass2.md, then read all of DATA/clusters/pass2_input.txt.
+Follow the instructions. Return only the JSON object.
+```
+
+Save the reply to `DATA/clusters/final.json`. Then:
+
+```bash
+python3 -I SKILL/scripts/cluster_apply.py DATA/feedback_log.jsonl DATA/clusters DATA/feedback
+```
+
+If more than 2% of rows are unassigned or not merged, rerun the pass-1 chunks they came from. Show the user the top clusters with row counts, the date range of each, and how many months each was seen. A cluster seen across many months is a failure that a rule has not fixed.
+
+**7. Rules for a target (only if asked).** Put each failure mode where it is cheapest to stop it, in this order:
+1. A hook, if a script can check it (block `git push` to main, block writes outside the repo, fail a "done" with no test run in the turn). Hooks are enforced. Prompt rules are only advice.
+2. A review rule, if it shows in a diff (missing test, unchecked write, migration with no rollback).
+3. CLAUDE.md or AGENTS.md, for the top 5 to 10 behaviour failures only. One line each, as trigger, then action: "Before you say a fix works, run it and show the output." Long lists get skipped.
+4. A failure-mode reference the agent loads when relevant (a skill or a doc it is told to read): every cluster, each with its rule and one real bad-then-better example from the log.
+5. Eval cases, to prove a rule changes behaviour.
+
+ For each cluster the user picks (default: the negative clusters seen in 3 or more months), write the cluster's rule in the target's format, with its row count and one verified quote as evidence:
+- Code review tool: instructions by file path (for CodeRabbit, `reviews.path_instructions` in `.coderabbit.yaml`) for failures that show in a diff, such as a missing test, a migration with no rollback, or an unchecked write.
+- CLAUDE.md: one line per rule, for failures in how Claude works (claims done without running tests, edits the wrong branch).
+- Hook: a check a script can run before or after a tool call (for example, block `git push` to main, block writes outside the repo).
+- Coding-agent prompt: a short "Known failure modes" block: what it looks like, what to do instead.
+- Evals: one test case per cluster, built from a quoted exchange.
+
+Write the drafts to `DATA/rules.md`, then check the quotes:
+
+```bash
+python3 -I SKILL/scripts/check_quotes.py DATA/rules.md DATA/feedback_log.jsonl
+```
+
+Fix or drop every quote reported as MISSING. Show the drafts. Change no project file without a yes.
+
+**8. Usage counts (optional, no model).**
+
+```bash
+python3 -I SKILL/scripts/count_usage.py DATA/usage_by_month.csv
+```
+
+Counts slash commands, skills, subagents, MCP servers and tool errors by month.
+
+## Two machines
+
+Run steps 1 to 5 on each machine. Copy the other machine's `feedback_log.jsonl` across by hand (not through git), then:
+
+```bash
+python3 -I SKILL/scripts/combine_logs.py DATA/feedback_log_all.jsonl work=DATA/feedback_log.jsonl home=<path>/feedback_log.jsonl
+```
+
+Run steps 6 and 7 on the combined file.
+
+## Notes
+
+- Report the verified-quote rate with every result. Rows whose quote does not match stay in the log with `quote_verified=false`.
+- `ref` (k=N) in each row points to `DATA/messages.jsonl`, which holds the full message and Claude's replies on each side.
+- Lost transcripts cannot be rebuilt. Before you call a period lost, check `history.jsonl` and any backups the user has.
