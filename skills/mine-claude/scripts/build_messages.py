@@ -14,6 +14,11 @@ Usage:
   python3 -I scripts/build_messages.py data/messages.jsonl
       [--claude-dir ~/.claude] [--web-dir ~/mine-claude-data/web] [--my-user-id user_XXXX]
       [--claudian-dir ~/vault/.claudian] [--notes "~/notes/*.md" ...] [--no-history] [--no-dk]
+      [--sources transcript,queued,web,history,dk,note] [--since 2026-01-01] [--until 2026-12-31]
+      [--include REGEX] [--exclude REGEX]
+
+--include / --exclude match the project, title and message text (case-insensitive).
+Rows with no date (notes) are kept by --since / --until.
 """
 import argparse, datetime, glob, html, json, os, re
 from collections import Counter
@@ -28,6 +33,11 @@ ap.add_argument("--claudian-dir", action="append", default=[], help="a vault's .
 ap.add_argument("--notes", action="append", default=[], help="glob of notes files to include")
 ap.add_argument("--no-history", action="store_true")
 ap.add_argument("--no-dk", action="store_true")
+ap.add_argument("--sources", default="", help="comma list of sources to keep (default: all)")
+ap.add_argument("--since", default="", help="keep rows on or after this date, YYYY-MM-DD")
+ap.add_argument("--until", default="", help="keep rows on or before this date, YYYY-MM-DD")
+ap.add_argument("--include", default="", help="keep rows whose project, title or text matches this regex")
+ap.add_argument("--exclude", default="", help="drop rows whose project, title or text matches this regex")
 a = ap.parse_args()
 
 CD = Path(os.path.expanduser(a.claude_dir))
@@ -197,6 +207,27 @@ for g in a.notes:
             rows.append({"source": "note", "session": "", "project": "", "title": f, "ts": "", "uuid": "",
                          "text": t, "claude_before": "", "claude_after": ""})
 
+keep_src = {s.strip() for s in a.sources.split(",") if s.strip()}
+inc = re.compile(a.include, re.I) if a.include else None
+exc = re.compile(a.exclude, re.I) if a.exclude else None
+def keep(r):
+    if keep_src and r["source"] not in keep_src:
+        return False
+    d = (r["ts"] or "")[:10]
+    if d and a.since and d < a.since:
+        return False
+    if d and a.until and d > a.until:
+        return False
+    hay = " ".join(str(r.get(k) or "") for k in ("project", "title", "text"))
+    if inc and not inc.search(hay):
+        return False
+    if exc and exc.search(hay):
+        return False
+    return True
+before = len(rows)
+rows = [r for r in rows if keep(r)]
+if len(rows) != before:
+    print(f"filters kept {len(rows)} of {before} rows")
 rows.sort(key=lambda r: (r["source"] == "note", r["ts"] or ""))
 Path(a.out).parent.mkdir(parents=True, exist_ok=True)
 with open(a.out, "w") as o:

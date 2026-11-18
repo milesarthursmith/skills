@@ -5,7 +5,7 @@ description: Mine your own Claude conversations for what you learnt. Reads local
 
 # mine-claude
 
-Turns months of Claude conversations into one log and one summary. The log has a row per item (failure, correction, lesson, skill_used, what_worked, tool_limit), each with an exact quote. A script checks every quote against the source text. Haiku reads the conversations, Sonnet groups the rows into themes, and you write the summary from those themes.
+Turns Claude conversations into one log, with a row per item and an exact quote on each row. A script checks every quote against the source text. The user chooses what to log, which sources and dates to read, and what to do with the log afterwards. The core output is the log. A themes report and rule proposals are optional extras.
 
 `SKILL` below means this skill's folder. `DATA` means `~/mine-claude-data` unless the user names another place. Keep `DATA` out of git and cloud sync: transcripts hold anything pasted into chats, keys included. Never print or copy a credential you see in a transcript.
 
@@ -26,7 +26,14 @@ It does not read claude.ai chats, screenshots or subagent transcripts. Nothing i
 
 **0. Check retention.** Claude Code deletes local transcripts after 30 days unless `cleanupPeriodDays` is set in `~/.claude/settings.json`. Read the file. If the setting is missing, tell the user what is at risk and offer to set it to 3650. Do not change the file without a yes.
 
-**1. Set up `DATA`.** `mkdir -p ~/mine-claude-data`. Write `DATA/context.md` from `SKILL/context.example.md`. Ask the user two things only if you cannot infer them from the conversation or memory: one line on what they work on, and the project labels to use.
+**1. Agree the scope, then set up `DATA`.** `mkdir -p ~/mine-claude-data`. Ask the user these in one go (offer the defaults in brackets; skip any the request already answers):
+- What to log (all six default types; they can drop some or add their own, such as good prompts or decisions).
+- Which sources (all available).
+- Date range (all time).
+- Projects to include or skip (all).
+- What they want at the end (the log only; or a themes report; or rule proposals for CLAUDE.md or memory).
+
+Write the answers into `DATA/context.md`, starting from `SKILL/context.example.md`. Add one line on what they work on and the project labels, from the conversation or memory if you can.
 
 **2. Web sessions (ask first).** Only if the user uses Claude Code on the web. This uses private Anthropic endpoints through a patched `claude-code-transcripts` (the published one is broken, issue #77; PR #93 fixes it), so it can break without notice. It needs `uv` and a Claude Code login. Run from `DATA`:
 
@@ -46,7 +53,7 @@ python3 -I SKILL/scripts/build_messages.py DATA/messages.jsonl [--my-user-id use
 python3 -I SKILL/scripts/make_batches.py DATA/messages.jsonl DATA/batches
 ```
 
-`--claudian-dir` adds Claudian titles (repeatable). `--notes` adds lesson files such as memory or retro notes (repeatable). Show the user the row counts by source and month. Months with only `history` rows mean the full transcripts were deleted. Say so.
+`--claudian-dir` adds Claudian titles (repeatable). `--notes` adds lesson files such as memory or retro notes (repeatable). Apply the step 1 scope with `--sources transcript,web,...`, `--since YYYY-MM-DD`, `--until YYYY-MM-DD`, `--include REGEX` and `--exclude REGEX` (these match project, title and message text). Show the user the row counts by source and month. Months with only `history` rows mean the full transcripts were deleted. Say so.
 
 **4. Extract with Haiku.** Tell the user the batch count first. As a guide, 5,000 messages make about 125 batches of 80 KB.
 
@@ -79,7 +86,9 @@ python3 -I SKILL/scripts/merge.py DATA/messages.jsonl DATA/batches DATA/learning
 
 It writes `learnings_log.jsonl` and `.csv`. It also prints the verified-quote rate, the worst batches and any batch with no output. Rerun missing batches once. Below 95% verified, look at the worst batches before going on.
 
-**6. Group into themes with Sonnet.**
+If the user asked for the log only, stop here. Give them the path, the row counts by type, and the verified-quote rate. Steps 6 and 7 run only if they asked for a themes report or rule proposals.
+
+**6. Group into themes with Sonnet (optional).**
 
 ```bash
 python3 -I SKILL/scripts/split_for_synthesis.py DATA/learnings_log.jsonl DATA/synth
@@ -98,7 +107,11 @@ and things that worked (one line each, with a log_id). Plain English, short sent
 Max about 1,200 words. Return the report as text.
 ```
 
-**7. Write the summary.** Write `DATA/learnings.md` (or where the user wants it). Order:
+**7. Write the output they asked for (optional).**
+
+Rule proposals: from the themes, draft each repeated failure as one rule for CLAUDE.md or memory, with the item count and one quote. Show them to the user. Change no file without a yes.
+
+Themes report: write `DATA/learnings.md` (or where the user wants it). Order:
 1. The few rules that appear in most groups, each with one quote and a rough item count.
 2. A short section for each group.
 3. Platform limits, what worked, and usage (step 8).
